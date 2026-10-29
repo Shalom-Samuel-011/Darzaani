@@ -1,0 +1,125 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f2ecdd;
+  --foreground: #1c1a16;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  /* Cream & Orange Palette */
+  --color-cream-50: #fefdf8;
+  --color-cream-100: #fdf9ef;
+  --color-cream-200: #fbf3de;
+  --color-cream-300: #f7eac9;
+  --color-cream-400: #f1ddae;
+  --color-cream-500: #ebcf8f;
+  --color-cream-600: #e3c173;
+  --color-cream-700: #d4a859;
+  --color-cream-800: #b88d47;
+  --color-cream-900: #96733a;
+
+  --color-orange-50: #fff7ed;
+  --color-orange-100: #ffedd5;
+  --color-orange-200: #fed7aa;
+  --color-orange-300: #fdba74;
+  --color-orange-400: #fb923c;
+  --color-orange-500: #f97316;
+  --color-orange-600: #ea580c;
+  --color-orange-700: #c2410c;
+  --color-orange-800: #9a3412;
+  --color-orange-900: #7c2d12;
+
+  /* Semantic colors using the palette */
+  --color-primary: var(--color-orange-600);
+  --color-primary-hover: var(--color-orange-700);
+  --color-primary-light: var(--color-orange-100);
+  --color-primary-dark: var(--color-orange-800);
+  --color-primary-muted: var(--color-orange-500);
+
+  --color-secondary: var(--color-cream-200);
+  --color-secondary-hover: var(--color-cream-300);
+  --color-secondary-dark: var(--color-cream-400);
+
+  --color-accent: var(--color-orange-500);
+  --color-accent-light: var(--color-orange-300);
+  --color-accent-dark: var(--color-orange-700);
+
+  --color-surface: var(--color-cream-50);
+  --color-surface-elevated: #ffffff;
+  --color-surface-border: var(--color-cream-200);
+
+  --color-text-primary: var(--color-foreground);
+  --color-text-secondary: #78716c;
+  --color-text-muted: #a8a29e;
+  --color-text-inverse: #fefdf8;
+
+  --color-border: var(--color-cream-200);
+  --color-border-strong: var(--color-cream-300);
+  --color-border-focus: var(--color-orange-500);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+button:not(:disabled),
+a[href]:not([aria-disabled="true"]),
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: var(--background);
+  background-image:
+    repeating-linear-gradient(
+      0deg,
+      rgba(116, 92, 57, 0.035) 0,
+      rgba(116, 92, 57, 0.035) 1px,
+      transparent 1px,
+      transparent 4px
+    ),
+    repeating-linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.22) 0,
+      rgba(255, 255, 255, 0.22) 1px,
+      transparent 1px,
+      transparent 5px
+    ),
+    radial-gradient(ellipse at 18% 12%, rgba(255, 252, 241, 0.55), transparent 62%),
+    radial-gradient(ellipse at 82% 78%, rgba(202, 177, 132, 0.09), transparent 58%);
+  background-attachment: fixed;
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+}
+
+/* Focus visible styles */
+:focus-visible {
+  outline: 2px solid var(--color-border-focus);
+  outline-offset: 2px;
+}
+
+/* Smooth transitions for theme changes */
+* {
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
