@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AxiosError } from "axios";
 import API from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { Order } from "@/types";
 
 const ORDER_STEPS = [
@@ -17,35 +18,66 @@ const ORDER_STEPS = [
 ];
 
 export default function OrdersPage() {
+    const { user, isLoading: isAuthLoading } = useAuth();
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
+    const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+    const fetchOrdersRef = useRef<() => void>(() => {});
 
     useEffect(() => {
+        if (isAuthLoading || !user) return;
+
+        let active = true;
         const fetchOrders = async () => {
             try {
-                const res = await API.get("/orders/my-orders");
-                setOrders(res.data.data.orders || res.data.data || []);
+                const res = await API.get("/order/my-orders");
+                if (active) {
+                    setOrders(res.data.data.orders || res.data.data || []);
+                    setPaymentConfirmed(
+                        new URLSearchParams(window.location.search).get("payment") === "success",
+                    );
+                }
             } catch (err) {
-                const error = err as AxiosError<{ message?: string }>;
+                if (!active) return;
+                const requestError = err as AxiosError<{ message?: string }>;
                 setError(
-                    error.response?.data?.message ||
-                        "Failed to fetch order history.",
+                    requestError.response?.data?.message ||
+                        requestError.message ||
+                        "Could not connect to order history. Please try again.",
                 );
             } finally {
-                setLoading(false);
+                if (active) setLoading(false);
+            }
+        };
+        fetchOrdersRef.current = () => void fetchOrders();
+
+        const refreshWhenReturning = () => {
+            if (document.visibilityState === "visible") {
+                setLoading(true);
+                setError("");
+                void fetchOrders();
             }
         };
 
-        fetchOrders();
-    }, []);
+        void fetchOrders();
+        window.addEventListener("focus", refreshWhenReturning);
+        document.addEventListener("visibilitychange", refreshWhenReturning);
+        return () => {
+            active = false;
+            window.removeEventListener("focus", refreshWhenReturning);
+            document.removeEventListener("visibilitychange", refreshWhenReturning);
+        };
+    }, [isAuthLoading, user]);
 
     const getStatusStepIndex = (status: string) => {
         const idx = ORDER_STEPS.findIndex((s) => s.key === status);
         return idx !== -1 ? idx : 0;
     };
 
-    if (loading) {
+    const displayError = user ? error : "Please sign in to view your orders.";
+
+    if (isAuthLoading || (loading && user)) {
         return (
             <div className="flex justify-center items-center py-20">
                 <div className="rounded-full h-10 w-10 border-2 border-cream-300 animate-spin"></div>
@@ -64,13 +96,40 @@ export default function OrdersPage() {
                 </p>
             </div>
 
-            {error && (
-                <div className="mb-6 rounded-lg bg-orange-50 p-3 text-sm text-orange-600 border border-orange-200">
-                    {error}
+            {paymentConfirmed && (
+                <p className="mb-6 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm font-medium text-green-800" role="status">
+                    Payment confirmed. Your piece is now in My Orders.
+                </p>
+            )}
+
+            {displayError && (
+                <div className="mb-6 flex flex-col gap-3 rounded-lg border border-orange-200 bg-orange-50 p-4 text-sm text-orange-700 sm:flex-row sm:items-center sm:justify-between">
+                    <p role="alert">Could not load your orders: {displayError}</p>
+                    {user ? (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setLoading(true);
+                                setError("");
+                                fetchOrdersRef.current();
+                            }}
+                            disabled={loading}
+                            className="w-fit cursor-pointer rounded-full bg-[#853b20] px-4 py-2 font-semibold text-white transition hover:bg-orange-800 disabled:cursor-wait disabled:opacity-60"
+                        >
+                            {loading ? "Refreshing…" : "Try again"}
+                        </button>
+                    ) : (
+                        <Link
+                            href={`/login?redirect=${encodeURIComponent("/orders")}`}
+                            className="w-fit rounded-full bg-[#853b20] px-4 py-2 font-semibold text-white transition hover:bg-orange-800"
+                        >
+                            Sign in
+                        </Link>
+                    )}
                 </div>
             )}
 
-            {orders.length === 0 && !error ? (
+            {orders.length === 0 && !displayError ? (
                 <div className="text-center py-16 bg-white rounded-3xl border border-cream-200 p-8 shadow-sm">
                     <p className="text-gray-500 font-medium mb-4">
                         You haven&apos;t placed any custom orders yet.
@@ -112,7 +171,9 @@ export default function OrdersPage() {
                                     </div>
                                     <div className="flex items-center space-x-3">
                                         <span className="text-xs font-semibold uppercase px-3 py-1 rounded-full bg-orange-50 text-orange-600 border border-orange-200">
-                                            {order.status.replace(/_/g, " ")}
+                                            {order.paymentStatus === "paid"
+                                                ? order.status.replace(/_/g, " ")
+                                                : "payment pending"}
                                         </span>
                                         <span className="text-lg font-bold text-gray-900">
                                             ₹{order.totalAmount}
@@ -141,6 +202,8 @@ export default function OrdersPage() {
                                                     </strong>
                                                     {item.selectedStandardSize &&
                                                         ` (${item.selectedStandardSize})`}
+                                                    {item.selectedColor && ` · Colour: ${item.selectedColor}`}
+                                                    {item.quantity > 1 && ` · Qty: ${item.quantity}`}
                                                     | Fabric:{" "}
                                                     <strong className="text-gray-700">
                                                         {item.fabricSource ===
@@ -151,23 +214,23 @@ export default function OrdersPage() {
                                                 </p>
                                                 {item.customizationNotes && (
                                                     <p className="text-xs text-gray-600 mt-1 italic">
-                                                        Note: "
+                                                        Note: &quot;
                                                         {
                                                             item.customizationNotes
                                                         }
-                                                        "
+                                                        &quot;
                                                     </p>
                                                 )}
                                             </div>
                                             <span className="text-sm font-semibold text-orange-600">
-                                                ₹{item.itemPrice}
+                                                ₹{item.itemPrice * item.quantity}
                                             </span>
                                         </div>
                                     ))}
                                 </div>
 
                                 {/* Tailoring Progress Timeline Bar */}
-                                <div>
+                                {order.paymentStatus === "paid" ? <div>
                                     <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
                                         Stitching Progress
                                     </h4>
@@ -200,7 +263,7 @@ export default function OrdersPage() {
                                             );
                                         })}
                                     </div>
-                                </div>
+                                </div> : <p className="rounded-xl border border-orange-200 bg-orange-50 p-4 text-sm text-orange-800">Payment must be confirmed before the atelier begins work. If you completed payment, refresh this page in a moment.</p>}
                             </div>
                         );
                     })}

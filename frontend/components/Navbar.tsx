@@ -61,6 +61,7 @@ export default function Navbar() {
               <Link
                 href="/cart"
                 aria-label={`Fitting bag, ${itemCount} ${itemCount === 1 ? "item" : "items"}`}
+                title="Open your fitting bag"
                 className="relative inline-flex items-center justify-center rounded-full p-2 text-stone-700 transition-colors hover:bg-white/70 hover:text-orange-800"
               >
                 <ShoppingBag className="h-[18px] w-[18px]" />

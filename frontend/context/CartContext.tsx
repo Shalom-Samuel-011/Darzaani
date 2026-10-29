@@ -24,6 +24,7 @@ interface CartContextValue {
   removeItem: (id: string) => Promise<void>;
   updateQuantity: (id: string, quantity: number) => Promise<void>;
   clearCart: () => Promise<void>;
+  refreshCart: () => Promise<void>;
 }
 
 const CartContext = createContext<CartContextValue | undefined>(undefined);
@@ -34,7 +35,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
   const userIdRef = useRef(userId);
   const [items, setItems] = useState<CartLineItem[]>([]);
   const [loadedUserId, setLoadedUserId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -46,22 +46,14 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    if (authLoading) return;
-    if (!userId) {
-      setItems([]);
-      setLoadedUserId(null);
-      setError("");
-      setIsLoading(false);
-      return;
-    }
+    if (authLoading || !userId) return;
 
     let cancelled = false;
-    setIsLoading(true);
-    setError("");
     API.get("/users/me/cart")
       .then((response) => {
         if (cancelled) return;
         setItems(response.data.data.items as CartLineItem[]);
+        setError("");
         setLoadedUserId(userId);
       })
       .catch((requestError: { response?: { data?: { message?: string } } }) => {
@@ -69,9 +61,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
         setItems([]);
         setError(requestError.response?.data?.message || "Could not load your fitting bag.");
         setLoadedUserId(userId);
-      })
-      .finally(() => {
-        if (!cancelled) setIsLoading(false);
       });
 
     return () => {
@@ -135,19 +124,26 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [acceptItems, userId]);
 
+  const refreshCart = useCallback(async () => {
+    if (!userId) return;
+    const response = await API.get("/users/me/cart");
+    acceptItems(userId, response.data.data.items as CartLineItem[]);
+  }, [acceptItems, userId]);
+
   const value = useMemo(
     () => ({
-      items,
-      itemCount: items.reduce((count, item) => count + item.quantity, 0),
-      subtotal: items.reduce((sum, item) => sum + item.garment.basePrice * item.quantity, 0),
-      isLoading: authLoading || isLoading || (!!userId && loadedUserId !== userId),
-      error,
+      items: userId ? items : [],
+      itemCount: userId ? items.reduce((count, item) => count + item.quantity, 0) : 0,
+      subtotal: userId ? items.reduce((sum, item) => sum + item.garment.basePrice * item.quantity, 0) : 0,
+      isLoading: authLoading || (!!userId && loadedUserId !== userId),
+      error: userId && loadedUserId === userId ? error : "",
       addItem,
       removeItem,
       updateQuantity,
       clearCart,
+      refreshCart,
     }),
-    [items, authLoading, isLoading, loadedUserId, userId, error, addItem, removeItem, updateQuantity, clearCart],
+    [items, authLoading, loadedUserId, userId, error, addItem, removeItem, updateQuantity, clearCart, refreshCart],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

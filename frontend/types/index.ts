@@ -76,7 +76,9 @@ export interface OrderItem {
     fabricDetails?: string;
     customizationNotes?: string;
     referenceImages?: string[];
+    selectedColor?: string;
     itemPrice: number;
+    quantity: number;
 }
 
 export interface Order {
@@ -92,6 +94,7 @@ export interface Order {
         status: "pending" | "scheduled" | "picked_up" | "received_at_boutique";
     };
     status:
+        | "payment_pending"
         | "order_placed"
         | "awaiting_fabric"
         | "fabric_received"
@@ -104,7 +107,15 @@ export interface Order {
         | "delivered"
         | "cancelled";
     totalAmount: number;
-    paymentStatus: "pending" | "partially_paid" | "paid" | "refunded";
+    paymentStatus: "pending" | "authorized" | "partially_paid" | "paid" | "failed" | "refunded";
+    payment?: {
+        provider: "razorpay";
+        currency: "INR";
+        amount: number;
+        razorpayOrderId?: string;
+        razorpayPaymentId?: string;
+        verifiedAt?: string;
+    };
     deliveryAddress: {
         street: string;
         city: string;

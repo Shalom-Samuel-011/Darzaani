@@ -15,6 +15,7 @@ const orderItemSchema = new mongoose.Schema({
         type: String,
         enum: ["XS", "S", "M", "L", "XL", "XXL", "Free Size"],
     },
+    selectedColor: { type: String, trim: true },
     // Immutable snapshot copy of measurements at time of order
     measurementSnapshot: {
         profileTitle: String,
@@ -63,6 +64,12 @@ const orderItemSchema = new mongoose.Schema({
         type: Number,
         required: [true, "An item must have a price"],
     },
+    quantity: {
+        type: Number,
+        min: 1,
+        max: 99,
+        default: 1,
+    },
 });
 
 const orderSchema = new mongoose.Schema(
@@ -109,6 +116,7 @@ const orderSchema = new mongoose.Schema(
         status: {
             type: String,
             enum: [
+                "payment_pending",
                 "order_placed",
                 "awaiting_fabric",
                 "fabric_received",
@@ -136,9 +144,20 @@ const orderSchema = new mongoose.Schema(
         },
         paymentStatus: {
             type: String,
-            enum: ["pending", "partially_paid", "paid", "refunded"],
+            enum: ["pending", "authorized", "partially_paid", "paid", "failed", "refunded"],
             default: "pending",
         },
+        payment: {
+            provider: { type: String, enum: ["razorpay"], default: "razorpay" },
+            currency: { type: String, enum: ["INR"], default: "INR" },
+            amount: { type: Number, min: 1 }, // Smallest currency unit (paise)
+            razorpayOrderId: String,
+            razorpayOrderCreationStartedAt: Date,
+            razorpayPaymentId: String,
+            verifiedAt: Date,
+        },
+        checkoutRequestId: String,
+        sourceCartItemIds: [mongoose.Schema.Types.ObjectId],
 
         deliveryAddress: {
             street: { type: String, required: true },
@@ -153,6 +172,12 @@ const orderSchema = new mongoose.Schema(
         timestamps: true,
     },
 );
+
+orderSchema.index(
+    { "payment.razorpayOrderId": 1 },
+    { unique: true, sparse: true },
+);
+orderSchema.index({ checkoutRequestId: 1 }, { unique: true, sparse: true });
 
 // Auto-populate customer basic contact details and garment references on queries
 orderSchema.pre(/^find/, function () {
