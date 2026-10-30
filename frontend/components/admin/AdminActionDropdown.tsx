@@ -23,6 +23,7 @@ export default function AdminActionDropdown({
   onChange,
   disabled = false,
   placeholder = "Choose an option",
+  fullWidth = false,
 }: {
   label: string;
   value: string;
@@ -30,6 +31,7 @@ export default function AdminActionDropdown({
   onChange: (value: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  fullWidth?: boolean;
 }) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -92,7 +94,7 @@ export default function AdminActionDropdown({
       aria-controls={id}
       disabled={disabled}
       onClick={() => setOpen((current) => !current)}
-      className={`inline-flex min-h-10 min-w-[132px] items-center justify-between gap-3 rounded-xl border bg-white px-3 text-left text-xs font-medium text-stone-700 outline-none transition focus-visible:ring-2 focus-visible:ring-orange-200 disabled:cursor-not-allowed disabled:opacity-50 ${open ? "border-orange-700 ring-2 ring-orange-100" : "border-[#e8dcc8] hover:border-orange-400"}`}
+      className={`inline-flex min-h-10 min-w-[132px] items-center justify-between gap-3 rounded-xl border bg-white px-3 text-left text-xs font-medium text-stone-700 outline-none transition focus-visible:ring-2 focus-visible:ring-orange-200 disabled:cursor-not-allowed disabled:opacity-50 ${fullWidth ? "w-full" : ""} ${open ? "border-orange-700 ring-2 ring-orange-100" : "border-[#e8dcc8] hover:border-orange-400"}`}
     >
       <span className="truncate">{selected?.label || placeholder}</span>
       <ChevronDown className={`h-4 w-4 shrink-0 text-stone-500 transition-transform ${open ? "rotate-180" : ""}`} />

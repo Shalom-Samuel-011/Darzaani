@@ -12,7 +12,8 @@
         "start-prod": "crossenv NODE_ENV=production nodemon server.js",
         "seed:garments": "node scripts/seedGarments.js",
         "seed:demo-users": "node scripts/seedDemoUsers.js",
-        "seed:branches": "node scripts/seedBranches.js"
+        "seed:branches": "node scripts/seedBranches.js",
+        "seed:workflow-records": "node scripts/seedWorkflowRecords.js"
     },
     "dependencies": {
         "bcryptjs": "^3.0.3",

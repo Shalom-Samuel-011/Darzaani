@@ -7,8 +7,10 @@ import { useEffect, useState } from "react";
 import type { RazorpayOptions, RazorpayPaymentResponse } from "@/types/razorpay";
 import API from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
+import type { Branch } from "@/types";
 import { ArrowRight, Minus, Plus, ShoppingBag, Trash2 } from "lucide-react";
 import { useCart } from "@/context/CartContext";
+import AdminActionDropdown from "@/components/admin/AdminActionDropdown";
 
 declare global {
   interface Window {
@@ -33,6 +35,9 @@ export default function CartPage() {
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutScriptReady, setCheckoutScriptReady] = useState(false);
   const [inventoryBlockedKey, setInventoryBlockedKey] = useState("");
+  const [demoBranches, setDemoBranches] = useState<Branch[]>([]);
+  const [selectedDemoBranch, setSelectedDemoBranch] = useState("");
+  const isDemoCustomer = user?.email === "customer@darzaani.com";
   const availabilityKey = JSON.stringify({ address, items: items.map((item) => [item.id, item.quantity]) });
   const inventoryBlocked = inventoryBlockedKey === availabilityKey;
 
@@ -51,6 +56,17 @@ export default function CartPage() {
     };
   }, [refreshCart]);
 
+  useEffect(() => {
+    if (!isDemoCustomer) return;
+    let active = true;
+    API.get("/branches").then((response) => {
+      if (active) setDemoBranches(response.data.data.branches || []);
+    }).catch(() => {
+      if (active) setDemoBranches([]);
+    });
+    return () => { active = false; };
+  }, [isDemoCustomer]);
+
   const recoverAlreadyPaidCheckout = async (status: number | undefined, message: string) => {
     if (status !== 409 || !message.toLowerCase().includes("already been paid")) return false;
 
@@ -65,8 +81,25 @@ export default function CartPage() {
 
   const updateAddress = (field: keyof typeof address, value: string) => {
     setAddress((current) => ({ ...current, [field]: value }));
+    setSelectedDemoBranch("");
     setCheckoutRequestId("");
     setCheckoutError("");
+  };
+
+  const selectDemoBranch = (branchId: string) => {
+    const branch = demoBranches.find((candidate) => candidate._id === branchId);
+    setSelectedDemoBranch(branchId);
+    if (!branch) return;
+    setAddress((current) => ({
+      ...current,
+      street: branch.address.street,
+      city: branch.address.city,
+      state: branch.address.state,
+      pincode: branch.address.pincode,
+    }));
+    setCheckoutRequestId("");
+    setCheckoutError("");
+    setInventoryBlockedKey("");
   };
 
   const beginCheckout = async () => {
@@ -80,7 +113,11 @@ export default function CartPage() {
     setCheckoutRequestId(requestId);
 
     try {
-      const response = await API.post("/order/checkout", { requestId, deliveryAddress: address });
+      const response = await API.post("/order/checkout", {
+        requestId,
+        deliveryAddress: address,
+        ...(isDemoCustomer && selectedDemoBranch ? { demoLocationBranchId: selectedDemoBranch } : {}),
+      });
       const checkout = response.data.data.checkout as {
         localOrderId: string;
         razorpayOrderId: string;
@@ -286,6 +323,20 @@ export default function CartPage() {
               <form className="mt-6 space-y-3" onSubmit={(event) => { event.preventDefault(); void beginCheckout(); }}>
                 <h3 className="font-serif text-xl text-stone-900">Delivery details</h3>
                 <p className="text-xs leading-5 text-stone-500">At checkout, nearby branch availability is checked automatically. If a piece is unavailable everywhere, we’ll let you know.</p>
+                {isDemoCustomer && demoBranches.length > 0 && <div className="rounded-xl border border-dashed border-orange-300 bg-orange-50/60 p-3">
+                  <p className="text-xs font-medium text-stone-700">Demo delivery location</p>
+                  <div className="mt-1.5">
+                    <AdminActionDropdown
+                      label="Choose a demo delivery location"
+                      value={selectedDemoBranch}
+                      placeholder="Choose a sample branch address"
+                      fullWidth
+                      options={demoBranches.map((branch) => ({ value: branch._id, label: `${branch.name} — ${branch.address.city}` }))}
+                      onChange={selectDemoBranch}
+                    />
+                  </div>
+                  <span className="mt-1.5 block leading-5 text-stone-500">Uses the branch’s saved map pin to find the nearest atelier with every selected piece in stock.</span>
+                </div>}
                 {([
                   ["street", "Street address"], ["city", "City"], ["state", "State"],
                   ["pincode", "PIN code"], ["phone", "Contact phone"],

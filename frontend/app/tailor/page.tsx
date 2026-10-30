@@ -101,8 +101,8 @@ export default function TailorPage() {
     <main className="mx-auto max-w-7xl px-5 py-7 sm:px-8">
       {error && <div role="alert" className="mb-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"><span>{error}</span><button type="button" onClick={() => { setLoading(true); setRetry((value) => value + 1); }} className="font-semibold">Try again</button></div>}
       {notice && <p role="status" className="mb-5 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800">{notice}</p>}
-      <section className="overflow-hidden rounded-2xl border border-[#e8dcc8] bg-white shadow-sm">
-        <div className="grid gap-3 border-b border-[#eee5d7] bg-[#fffdf8] p-4 sm:grid-cols-2 lg:grid-cols-[minmax(230px,1fr)_240px]">
+      <section className="overflow-visible rounded-2xl border border-[#e8dcc8] bg-white shadow-sm">
+        <div className="relative z-10 grid gap-3 rounded-t-2xl border-b border-[#eee5d7] bg-[#fffdf8] p-4 sm:grid-cols-2 lg:grid-cols-[minmax(230px,1fr)_240px]">
           <label className="flex items-center gap-2 rounded-xl border border-[#e8dcc8] bg-white px-3.5 py-2.5 text-stone-500"><Search className="h-4 w-4"/><span className="sr-only">Search assigned work</span><input value={searchInput} onChange={(event) => { setSearchInput(event.target.value); setLoading(true); setError(""); }} placeholder="Search order number or garment" className="w-full bg-transparent text-sm text-stone-800 outline-none placeholder:text-stone-400"/></label>
           <StyledFilterDropdown label="Filter assigned work by stage" value={status} options={[{ value: "all", label: "All production stages" }, ...statuses.map((value) => ({ value, label: titleCase(value) }))]} onChange={(value) => { setStatus(value); setPage(1); setLoading(true); setError(""); }}/>
         </div>

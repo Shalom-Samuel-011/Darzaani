@@ -13,6 +13,7 @@ const ORDER_STEPS = [
     { key: "cutting", label: "Cutting" },
     { key: "stitching", label: "Stitching" },
     { key: "trial_ready", label: "Trial Ready" },
+    { key: "completed", label: "Completed" },
     { key: "dispatched", label: "Dispatched" },
     { key: "delivered", label: "Delivered" },
 ];
@@ -34,6 +35,7 @@ export default function OrdersPage() {
                 const res = await API.get("/order/my-orders");
                 if (active) {
                     setOrders(res.data.data.orders || res.data.data || []);
+                    setError("");
                     setPaymentConfirmed(
                         new URLSearchParams(window.location.search).get("payment") === "success",
                     );
@@ -61,10 +63,14 @@ export default function OrdersPage() {
         };
 
         void fetchOrders();
+        const refreshInterval = window.setInterval(() => {
+            if (document.visibilityState === "visible") void fetchOrders();
+        }, 15000);
         window.addEventListener("focus", refreshWhenReturning);
         document.addEventListener("visibilitychange", refreshWhenReturning);
         return () => {
             active = false;
+            window.clearInterval(refreshInterval);
             window.removeEventListener("focus", refreshWhenReturning);
             document.removeEventListener("visibilitychange", refreshWhenReturning);
         };
@@ -92,7 +98,7 @@ export default function OrdersPage() {
                     My Orders & Tracking
                 </h1>
                 <p className="text-sm text-gray-600 mt-1">
-                    Real-time status tracking for your custom tailored garments.
+                    Order updates appear automatically while this page is open.
                 </p>
             </div>
 
@@ -222,8 +228,18 @@ export default function OrdersPage() {
                                     ))}
                                 </div>
 
+                                {order.assignedTailor && typeof order.assignedTailor === "object" && (
+                                    <p className="mb-6 rounded-xl border border-cream-200 bg-[#fffdf8] px-4 py-3 text-sm text-gray-700">
+                                        Your tailor: <span className="font-semibold text-gray-900">{order.assignedTailor.name}</span>
+                                    </p>
+                                )}
+
                                 {/* Tailoring Progress Timeline Bar */}
-                                {order.paymentStatus === "paid" ? <div>
+                                {order.paymentStatus === "paid" && order.status === "cancelled" ? (
+                                    <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-800" role="status">
+                                        This order has been cancelled. Contact the atelier if you need more information.
+                                    </p>
+                                ) : order.paymentStatus === "paid" ? <div aria-live="polite">
                                     <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
                                         Stitching Progress
                                     </h4>

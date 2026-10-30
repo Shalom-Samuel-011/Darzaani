@@ -157,13 +157,28 @@ const buildOrderItemsFromCart = async (user) => {
     return { items, amountInPaise };
 };
 
-const findNearestBranchWithCartInventory = async (user, deliveryAddress) => {
+const findNearestBranchWithCartInventory = async (user, deliveryAddress, demoLocationBranchId) => {
     if (!user.cartItems?.length) throw new AppError(400, "Your fitting bag is empty.");
     let coordinates;
-    try {
-        coordinates = await geocodeAddress(deliveryAddress);
-    } catch {
-        throw new AppError(503, "We could not check nearby atelier availability right now. Please retry shortly.");
+
+    if (demoLocationBranchId) {
+        if (user.email !== "customer@darzaani.com") {
+            throw new AppError(403, "Demo delivery locations are available only to the Demo Customer account.");
+        }
+        if (!mongoose.isValidObjectId(demoLocationBranchId)) {
+            throw new AppError(400, "Choose a valid demo delivery location.");
+        }
+        const demoLocationBranch = await Branch.findOne({ _id: demoLocationBranchId, isActive: true }).select("location").lean();
+        if (!demoLocationBranch?.location?.coordinates?.length) {
+            throw new AppError(400, "This demo delivery location is unavailable.");
+        }
+        coordinates = demoLocationBranch.location.coordinates;
+    } else {
+        try {
+            coordinates = await geocodeAddress(deliveryAddress);
+        } catch {
+            throw new AppError(503, "We could not check nearby atelier availability right now. Please retry shortly.");
+        }
     }
     if (!coordinates) throw new AppError(400, "We could not locate this delivery address. Check the street, city, state, and PIN code.");
 
@@ -213,7 +228,7 @@ exports.createCheckout = async (req, res) => {
     }
 
     if (!order) {
-        const branch = await findNearestBranchWithCartInventory(req.user, deliveryAddress);
+        const branch = await findNearestBranchWithCartInventory(req.user, deliveryAddress, req.body.demoLocationBranchId);
         const { items, amountInPaise } = await buildOrderItemsFromCart(req.user);
         keyId = getRazorpayCredentials().keyId;
         order = new Order({

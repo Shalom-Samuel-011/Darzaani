@@ -55,6 +55,8 @@ export default function ConsultationDialog({
   const [selectedBranch, setSelectedBranch] = useState<string | null>(null);
   const [loadingBranches, setLoadingBranches] = useState(false);
   const [branchError, setBranchError] = useState("");
+  const [showAllDemoBranches, setShowAllDemoBranches] = useState(false);
+  const isDemoCustomer = user?.email === "customer@darzaani.com";
 
   useEffect(() => {
     if (!user) return;
@@ -80,6 +82,8 @@ export default function ConsultationDialog({
   }, [open, loading, onClose]);
 
   const fetchAllBranches = useCallback(async () => {
+    setLoadingBranches(true);
+    setBranchError("");
     try {
       const response = await API.get("/branches");
       const allBranches = response.data.data.branches;
@@ -121,10 +125,13 @@ export default function ConsultationDialog({
 
   // Fetch nearby branches when the dialog opens.
   useEffect(() => {
-    // Start loading branches when the dialog opens.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (open) void fetchNearestBranches();
-  }, [open, fetchNearestBranches]);
+    if (!open) return;
+    const refreshBranches = window.setTimeout(() => {
+      if (isDemoCustomer && showAllDemoBranches) void fetchAllBranches();
+      else void fetchNearestBranches();
+    }, 0);
+    return () => window.clearTimeout(refreshBranches);
+  }, [open, fetchNearestBranches, fetchAllBranches, isDemoCustomer, showAllDemoBranches]);
 
   useEffect(() => {
     // Clear stale slots when a required selection is removed.
@@ -271,6 +278,10 @@ export default function ConsultationDialog({
             {/* Branch Selection */}
             <div>
               <label className="mb-3 block text-sm font-medium text-stone-700">Select your preferred boutique</label>
+              {isDemoCustomer && <div className="mb-3 grid grid-cols-2 gap-2 rounded-xl bg-[#f7f1e6] p-1.5">
+                <button type="button" onClick={() => setShowAllDemoBranches(false)} aria-pressed={!showAllDemoBranches} className={`rounded-lg px-3 py-2 text-xs font-medium transition ${!showAllDemoBranches ? "bg-white text-orange-900 shadow-sm" : "text-stone-600 hover:text-stone-900"}`}>Nearby boutiques</button>
+                <button type="button" onClick={() => setShowAllDemoBranches(true)} aria-pressed={showAllDemoBranches} className={`rounded-lg px-3 py-2 text-xs font-medium transition ${showAllDemoBranches ? "bg-white text-orange-900 shadow-sm" : "text-stone-600 hover:text-stone-900"}`}>Browse all demo branches</button>
+              </div>}
               {loadingBranches ? (
                 <div className="flex items-center justify-center gap-2 rounded-xl border border-[#e5dac8] bg-white py-6 text-sm text-stone-600">
                   <Loader className="h-4 w-4 animate-spin" />

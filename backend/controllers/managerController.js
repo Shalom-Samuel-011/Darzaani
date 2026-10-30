@@ -214,13 +214,22 @@ exports.assignTailor = async (req, res, next) => {
     if (!order) return next(new AppError(404, "No order found in your branch with that ID."));
     if (!tailor) return next(new AppError(400, "The tailor must belong to your branch."));
     if (order.paymentStatus !== "paid") return next(new AppError(409, "A tailor can only be assigned after payment is confirmed."));
-    if (order.status !== "order_placed") {
-        return next(new AppError(409, "This order is not ready for tailor assignment."));
+    const tailorAssignableStatuses = ["order_placed", "assigned_to_tailor", "cutting", "stitching", "trial_ready"];
+    if (!tailorAssignableStatuses.includes(order.status)) {
+        return next(new AppError(409, "A tailor can only be assigned or changed before the order is completed."));
     }
     const previousStatus = order.status;
+    const previousTailor = order.assignedTailor;
+    const previousTailorId = previousTailor?._id || previousTailor;
+    if (String(previousTailorId || "") === String(tailor._id)) {
+        return next(new AppError(409, "This tailor is already assigned to the order."));
+    }
     order.assignedTailor = tailor._id;
-    order.status = "assigned_to_tailor";
-    order.workflowHistory.push({ type: "tailor_assigned", fromStatus: previousStatus, toStatus: order.status, actor: req.user._id, note: `Assigned to ${tailor.name || "tailor"}.` });
+    if (order.status === "order_placed") order.status = "assigned_to_tailor";
+    const note = previousTailor
+        ? `Reassigned from ${previousTailor.name || "previous tailor"} to ${tailor.name || "new tailor"}.`
+        : `Assigned to ${tailor.name || "tailor"}.`;
+    order.workflowHistory.push({ type: "tailor_assigned", fromStatus: previousStatus, toStatus: order.status, actor: req.user._id, note });
     await order.save();
     const safeOrder = await Order.findById(order._id)
         .select("-items.measurementSnapshot -items.referenceImages -deliveryAddress -payment -checkoutRequestId -sourceCartItemIds")

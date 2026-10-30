@@ -22,6 +22,10 @@ const nextOrderStatuses: Record<string, string[]> = {
   assigned_to_tailor: ["cutting"], cutting: ["stitching"], stitching: ["trial_ready"],
   trial_ready: ["stitching", "completed"], completed: ["dispatched"], dispatched: ["delivered"],
 };
+const orderActionLabels: Record<string, string> = {
+  stitching: "Send back for alterations",
+  completed: "Mark order completed",
+};
 const consultationStatuses = ["requested", "confirmed", "completed", "cancelled"];
 const label = (value: string) => value.replace(/[-_]/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const formatDate = (value: string) => new Date(value).toLocaleDateString("en-IN", { dateStyle: "medium" });
@@ -118,8 +122,8 @@ export default function BranchManagerPage() {
     setSavingId(orderId); setNotice(""); setError("");
     try {
       await API.patch(`/manager/orders/${orderId}/assign-tailor`, { tailorId });
-      setOrders((current) => current.map((order) => order._id === orderId ? { ...order, assignedTailor: tailors.find((person) => person._id === tailorId) || null, status: "assigned_to_tailor" } : order));
-      setNotice("Tailor assigned to this order.");
+      setOrders((current) => current.map((order) => order._id === orderId ? { ...order, assignedTailor: tailors.find((person) => person._id === tailorId) || null, status: order.status === "order_placed" ? "assigned_to_tailor" : order.status } : order));
+      setNotice("Tailor assignment updated.");
       setLoading(true); setDashboardLoading(true);
       setRetry((value) => value + 1);
     } catch (err) {
@@ -189,8 +193,8 @@ export default function BranchManagerPage() {
           <tbody className="divide-y divide-[#eee5d7]">
             {loading ? <tr><td colSpan={section === "orders" ? 8 : 6} className="px-6 py-12 text-center text-sm text-stone-500">Loading {section}...</td></tr> : section === "orders" ? orders.length ? orders.map((order) => <tr key={order._id}>
               <td className="px-4 py-4 text-sm font-semibold text-orange-900">#{order._id.slice(-6).toUpperCase()}</td><td className="px-4 py-4 text-sm">{order.customer?.name}<span className="block text-xs text-stone-500">{order.customer?.email}</span></td><td className="px-4 py-4 text-sm text-stone-600">{order.items?.length || 0}</td>
-              <td className="px-4 py-4"><AdminActionDropdown label={`Assign tailor for order ${order._id.slice(-6)}`} value={order.assignedTailor?._id || ""} placeholder={order.paymentStatus !== "paid" ? "Awaiting payment" : order.assignedTailor?.name || "Assign tailor"} disabled={savingId === order._id || order.paymentStatus !== "paid" || order.status !== "order_placed" || !tailors.length} options={tailors.map((person) => ({ value: person._id, label: person.name }))} onChange={(tailorId) => void assignTailor(order._id, tailorId)} /></td>
-              <td className="px-4 py-4"><div className="flex min-w-40 flex-col items-start gap-2"><span className="rounded-full bg-[#f7f1e6] px-2.5 py-1 text-xs font-medium capitalize text-stone-700">{label(order.status)}</span><AdminActionDropdown label={`Advance production stage for order ${order._id.slice(-6)}`} disabled={savingId === order._id || order.paymentStatus !== "paid" || !nextOrderStatuses[order.status]?.length} value="" placeholder={nextOrderStatuses[order.status]?.length ? `Move to ${label(nextOrderStatuses[order.status][0])}` : order.status === "order_placed" ? "Assign tailor first" : "No next step"} options={(nextOrderStatuses[order.status] || []).map((value) => ({ value, label: value === "completed" ? "Mark order completed" : label(value) }))} onChange={(nextStatus) => void updateOrderStatus(order._id, nextStatus)} /></div></td>
+              <td className="px-4 py-4"><AdminActionDropdown label={`${order.assignedTailor ? "Change" : "Assign"} tailor for order ${order._id.slice(-6)}`} value={order.assignedTailor?._id || ""} placeholder={order.paymentStatus !== "paid" ? "Awaiting payment" : order.assignedTailor?.name || "Assign tailor"} disabled={savingId === order._id || order.paymentStatus !== "paid" || !["order_placed", "assigned_to_tailor", "cutting", "stitching", "trial_ready"].includes(order.status) || !tailors.length} options={tailors.map((person) => ({ value: person._id, label: person.name }))} onChange={(tailorId) => void assignTailor(order._id, tailorId)} /></td>
+              <td className="px-4 py-4"><div className="flex min-w-40 flex-col items-start gap-2"><span className="rounded-full bg-[#f7f1e6] px-2.5 py-1 text-xs font-medium capitalize text-stone-700">{label(order.status)}</span><AdminActionDropdown label={`Choose next step for order ${order._id.slice(-6)}`} disabled={savingId === order._id || order.paymentStatus !== "paid" || !nextOrderStatuses[order.status]?.length} value="" placeholder={nextOrderStatuses[order.status]?.length ? nextOrderStatuses[order.status].length > 1 ? "Choose next action" : `Move to ${label(nextOrderStatuses[order.status][0])}` : order.status === "order_placed" ? "Assign tailor first" : "No next step"} options={(nextOrderStatuses[order.status] || []).map((value) => ({ value, label: orderActionLabels[value] || label(value) }))} onChange={(nextStatus) => void updateOrderStatus(order._id, nextStatus)} /></div></td>
               <td className="px-4 py-4 text-xs capitalize text-stone-600">{label(order.paymentStatus)}</td><td className="px-4 py-4 text-sm">{"\u20B9"}{(order.totalAmount || 0).toLocaleString("en-IN")}</td><td className="px-4 py-4"><button aria-label="View order details" onClick={() => setRecordTarget({ kind: "order", id: order._id })} className="rounded-lg p-2 text-stone-500 hover:bg-[#fdfcf8]"><Eye className="h-4 w-4"/></button></td>
             </tr>) : <tr><td colSpan={8} className="px-6 py-12 text-center text-sm text-stone-500">No orders match these filters.</td></tr> : consultations.length ? consultations.map((item) => <tr key={item._id}>
               <td className="px-4 py-4 text-sm font-medium">{item.name}</td><td className="px-4 py-4 text-sm text-stone-600">{item.email}<span className="block">{item.phone}</span></td><td className="px-4 py-4 text-sm text-stone-600">{item.garmentInterest}</td><td className="px-4 py-4 text-sm text-stone-600">{formatDate(item.preferredDate)}<span className="block">{item.preferredTime}</span></td>
