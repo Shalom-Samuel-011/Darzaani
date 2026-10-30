@@ -119,6 +119,8 @@ export default function Home() {
   const [testimonialDirection, setTestimonialDirection] = useState(1);
 
   useEffect(() => {
+    // Prevent browser-dependent animation content from rendering on the server.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsClient(true);
   }, []);
 

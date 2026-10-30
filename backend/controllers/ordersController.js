@@ -1,9 +1,14 @@
 const crypto = require("crypto");
+const mongoose = require("mongoose");
 const Order = require("../models/ordersModel");
 const User = require("../models/userModel");
 const Garment = require("../models/garmentsModel");
 const PaymentWebhookEvent = require("../models/paymentWebhookEventModel");
 const AppError = require("../utils/appError");
+const Branch = require("../models/branchModel");
+const { canAdvanceOrder } = require("../utils/orderWorkflow");
+const { findFirstAvailableBranch } = require("../utils/inventoryAvailability");
+const geocodeAddress = require("../utils/geocoding");
 
 const getRazorpayCredentials = () => {
     const keyId = process.env.RAZORPAY_KEY_ID;
@@ -145,7 +150,6 @@ const buildOrderItemsFromCart = async (user) => {
             selectedStandardSize: cartItem.selectedStandardSize,
             selectedColor: cartItem.selectedColor,
             measurementSnapshot,
-            fabricSource: "provided_by_boutique",
             itemPrice: unitAmount / 100,
             quantity: cartItem.quantity,
         });
@@ -153,9 +157,39 @@ const buildOrderItemsFromCart = async (user) => {
     return { items, amountInPaise };
 };
 
+const findNearestBranchWithCartInventory = async (user, deliveryAddress) => {
+    if (!user.cartItems?.length) throw new AppError(400, "Your fitting bag is empty.");
+    let coordinates;
+    try {
+        coordinates = await geocodeAddress(deliveryAddress);
+    } catch {
+        throw new AppError(503, "We could not check nearby atelier availability right now. Please retry shortly.");
+    }
+    if (!coordinates) throw new AppError(400, "We could not locate this delivery address. Check the street, city, state, and PIN code.");
+
+    const garmentIds = [...new Set(user.cartItems.map((item) => item.garment.toString()))];
+    const garments = await Garment.find({ _id: { $in: garmentIds } }).select("name isAvailable branchAvailability").lean();
+    const garmentById = new Map(garments.map((garment) => [garment._id.toString(), garment]));
+    const missing = garmentIds.map((id) => garmentById.get(id)).filter((garment) => !garment || !garment.isAvailable);
+    if (missing.length) {
+        const names = [...new Set(missing.map((garment) => garment?.name || "A selected piece"))];
+        throw new AppError(409, `Coming soon: ${names.join(", ")} ${names.length === 1 ? "is" : "are"} currently unavailable.`);
+    }
+
+    const branches = await Branch.find({
+        isActive: true,
+        location: { $near: { $geometry: { type: "Point", coordinates } } },
+    }).select("_id name code address").lean();
+
+    const nearestAvailableBranch = findFirstAvailableBranch(branches, garmentIds, garmentById);
+    if (nearestAvailableBranch) return nearestAvailableBranch;
+
+    const names = [...new Set(garmentIds.map((id) => garmentById.get(id)?.name || "Selected pieces"))];
+    throw new AppError(409, `Coming soon: ${names.join(", ")} ${names.length === 1 ? "is" : "are"} unavailable at every Darzaani atelier.`);
+};
+
 // Create the local order and Razorpay order from trusted server-side cart data.
 exports.createCheckout = async (req, res) => {
-    const { keyId } = getRazorpayCredentials();
     const { requestId } = req.body;
     if (typeof requestId !== "string" || !/^[\da-f-]{36}$/i.test(requestId)) {
         throw new AppError(400, "Invalid checkout request. Please try again.");
@@ -166,10 +200,12 @@ exports.createCheckout = async (req, res) => {
         customer: req.user._id,
         checkoutRequestId: requestId,
     });
+    let keyId;
     if (order?.paymentStatus === "paid") {
         throw new AppError(409, "This checkout has already been paid.");
     }
     if (order?.payment?.razorpayOrderId) {
+        keyId = getRazorpayCredentials().keyId;
         return res.status(200).json({
             status: "success",
             data: { checkout: makeCheckoutResponse(order, keyId) },
@@ -177,9 +213,12 @@ exports.createCheckout = async (req, res) => {
     }
 
     if (!order) {
+        const branch = await findNearestBranchWithCartInventory(req.user, deliveryAddress);
         const { items, amountInPaise } = await buildOrderItemsFromCart(req.user);
+        keyId = getRazorpayCredentials().keyId;
         order = new Order({
             customer: req.user._id,
+            branch: branch._id,
             items,
             status: "payment_pending",
             paymentStatus: "pending",
@@ -197,6 +236,7 @@ exports.createCheckout = async (req, res) => {
             if (!order) throw error;
         }
     }
+    if (!keyId) keyId = getRazorpayCredentials().keyId;
 
     const lockExpiredAt = new Date(Date.now() - 30000);
     const claim = await Order.findOneAndUpdate(
@@ -255,6 +295,7 @@ const completePaidOrder = async (order, payment) => {
         return order;
     }
 
+    const nextStatus = "order_placed";
     const updated = await Order.findOneAndUpdate(
         {
             _id: order._id,
@@ -265,9 +306,17 @@ const completePaidOrder = async (order, payment) => {
             $set: {
                 paymentStatus: "paid",
                 advancePaid: order.totalAmount,
-                status: order.fabricPickupRequired ? "awaiting_fabric" : "order_placed",
+                status: nextStatus,
                 "payment.razorpayPaymentId": payment.id,
                 "payment.verifiedAt": new Date(),
+            },
+            $push: {
+                workflowHistory: {
+                    type: "payment_confirmed",
+                    fromStatus: "payment_pending",
+                    toStatus: nextStatus,
+                    note: "Payment confirmed.",
+                },
             },
         },
         { new: true },
@@ -439,18 +488,33 @@ exports.getMyOrders = async (req, res, next) => {
 
 // 3. Get Single Order by ID
 exports.getOrder = async (req, res, next) => {
-    const order = await Order.findById(req.params.id);
+    let orderQuery = Order.findById(req.params.id);
+    if (req.user.role === "branch-manager") {
+        orderQuery = orderQuery.select("-items.measurementSnapshot -items.referenceImages -deliveryAddress -payment -checkoutRequestId -sourceCartItemIds");
+    }
+    if (req.user.role === "tailor") {
+        orderQuery = orderQuery
+            .select("-deliveryAddress -payment -checkoutRequestId -sourceCartItemIds")
+            .populate({ path: "customer", select: "name" })
+            .populate("workflowHistory.actor", "name role");
+    }
+    const order = await orderQuery;
 
     if (!order) {
-        return next(new Error("No order found with that ID"));
+        return next(new AppError(404, "No order found with that ID"));
     }
 
-    // Access Control: Customers can only access their own orders
-    if (
-        req.user.role === "customer" &&
-        order.customer._id.toString() !== req.user._id.toString()
-    ) {
-        return next(new Error("You do not have permission to view this order"));
+    const orderCustomerId = order.customer._id?.toString() || order.customer.toString();
+    const orderBranchId = order.branch?._id?.toString() || order.branch?.toString();
+    const orderTailorId = order.assignedTailor?._id?.toString() || order.assignedTailor?.toString();
+    if (req.user.role === "customer" && orderCustomerId !== req.user._id.toString()) {
+        return next(new AppError(403, "You do not have permission to view this order"));
+    }
+    if (req.user.role === "branch-manager" && orderBranchId !== req.user.branch?.toString()) {
+        return next(new AppError(403, "You do not have permission to view this order"));
+    }
+    if (req.user.role === "tailor" && orderTailorId !== req.user._id.toString()) {
+        return next(new AppError(403, "You do not have permission to view this order"));
     }
 
     res.status(200).json({
@@ -481,25 +545,66 @@ exports.getAllOrders = async (req, res, next) => {
     });
 };
 
+exports.getTailorOrders = async (req, res) => {
+    const page = Math.max(Number.parseInt(req.query.page, 10) || 1, 1);
+    const limit = Math.min(Math.max(Number.parseInt(req.query.limit, 10) || 10, 1), 50);
+    const filter = { assignedTailor: req.user._id };
+    if (req.query.status && req.query.status !== "all") filter.status = String(req.query.status);
+    if (req.query.search && String(req.query.search).trim()) {
+        const text = String(req.query.search).trim();
+        const safe = text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const idSuffix = text.replace(/^#/, "");
+        const [matchingGarments, matchingOrders] = await Promise.all([
+            Garment.find({ name: { $regex: safe, $options: "i" } }).distinct("_id"),
+            idSuffix ? Order.aggregate([
+                { $match: { assignedTailor: req.user._id } },
+                { $addFields: { searchableOrderId: { $toString: "$_id" } } },
+                { $match: { searchableOrderId: { $regex: `${idSuffix.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, $options: "i" } } },
+                { $project: { _id: 1 } },
+            ]) : Promise.resolve([]),
+        ]);
+        const matches = matchingOrders.length ? [{ _id: { $in: matchingOrders.map((order) => order._id) } }] : [];
+        if (matchingGarments.length) matches.push({ "items.garment": { $in: matchingGarments } });
+        filter.$or = matches.length ? matches : [{ _id: null }];
+    }
+    const [orders, total] = await Promise.all([
+        Order.find(filter)
+            .select("-deliveryAddress -payment -checkoutRequestId -sourceCartItemIds -items.measurementSnapshot -items.referenceImages -items.customizationNotes")
+            .populate({ path: "customer", select: "name" })
+            .sort("-createdAt").skip((page - 1) * limit).limit(limit).lean(),
+        Order.countDocuments(filter),
+    ]);
+    res.status(200).json({ status: "success", results: total, page, pages: Math.ceil(total / limit), data: { orders } });
+};
+
 // 5. Update Order Status (Tailor / Admin)
 exports.updateOrderStatus = async (req, res, next) => {
     const { status } = req.body;
 
     const existingOrder = await Order.findById(req.params.id);
-    if (!existingOrder) return next(new Error("No order found with that ID"));
+    if (!existingOrder) return next(new AppError(404, "No order found with that ID"));
     if (existingOrder.paymentStatus !== "paid") {
         return next(new AppError(409, "An order cannot enter tailoring before payment is confirmed."));
     }
-
-    const order = await Order.findByIdAndUpdate(
-        req.params.id,
-        { status },
-        { new: true, runValidators: true },
-    );
-
-    if (!order) {
-        return next(new Error("No order found with that ID"));
+    const assignedTailorId = existingOrder.assignedTailor?._id?.toString() || existingOrder.assignedTailor?.toString();
+    if (req.user.role === "tailor" && assignedTailorId !== req.user._id.toString()) {
+        return next(new AppError(403, "You can only update orders assigned to you."));
     }
+    if (!canAdvanceOrder(existingOrder.status, status)) {
+        return next(new AppError(409, `Order cannot move from ${existingOrder.status} to ${status}.`));
+    }
+    const tailorTransitions = {
+        assigned_to_tailor: ["cutting"],
+        cutting: ["stitching"],
+        stitching: ["trial_ready"],
+    };
+    if (req.user.role === "tailor" && !tailorTransitions[existingOrder.status]?.includes(status)) {
+        return next(new AppError(403, "Tailors can advance work through trial ready. A branch manager reviews and completes the order."));
+    }
+    const previousStatus = existingOrder.status;
+    existingOrder.status = status;
+    existingOrder.workflowHistory.push({ type: "status_changed", fromStatus: previousStatus, toStatus: status, actor: req.user._id });
+    const order = await existingOrder.save();
 
     res.status(200).json({
         status: "success",
@@ -514,23 +619,27 @@ exports.assignTailor = async (req, res, next) => {
     const { tailorId } = req.body;
 
     const existingOrder = await Order.findById(req.params.id);
-    if (!existingOrder) return next(new Error("No order found with that ID"));
+    if (!existingOrder) return next(new AppError(404, "No order found with that ID"));
     if (existingOrder.paymentStatus !== "paid") {
         return next(new AppError(409, "A tailor can only be assigned after payment is confirmed."));
     }
-
-    const order = await Order.findByIdAndUpdate(
-        req.params.id,
-        {
-            assignedTailor: tailorId,
-            status: "assigned_to_tailor",
-        },
-        { new: true, runValidators: true },
-    );
-
-    if (!order) {
-        return next(new Error("No order found with that ID"));
+    if (existingOrder.status !== "order_placed") {
+        return next(new AppError(409, "This order is not ready for tailor assignment."));
     }
+    if (!mongoose.isValidObjectId(tailorId)) return next(new AppError(400, "Choose a valid tailor."));
+    const tailor = await User.findOne({ _id: tailorId, role: "tailor" }).select("_id name branch");
+    if (!tailor) return next(new AppError(400, "Choose an active tailor account."));
+    const orderBranchId = existingOrder.branch?.toString();
+    const tailorBranchId = tailor.branch?.toString();
+    if (orderBranchId && orderBranchId !== tailorBranchId) {
+        return next(new AppError(400, "The tailor must belong to the order's branch."));
+    }
+    if (!existingOrder.branch && tailor.branch) existingOrder.branch = tailor.branch;
+    const previousStatus = existingOrder.status;
+    existingOrder.assignedTailor = tailor._id;
+    existingOrder.status = "assigned_to_tailor";
+    existingOrder.workflowHistory.push({ type: "tailor_assigned", fromStatus: previousStatus, toStatus: existingOrder.status, actor: req.user._id, note: `Assigned to ${tailor.name}.` });
+    const order = await existingOrder.save();
 
     res.status(200).json({
         status: "success",

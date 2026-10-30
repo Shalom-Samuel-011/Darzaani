@@ -16,16 +16,17 @@ const checkoutLimiter = rateLimit({
 });
 
 // Customer Routes
-router.get("/my-orders", orderController.getMyOrders);
+router.get("/my-orders", authController.restrictTo("customer"), orderController.getMyOrders);
 
 // Checkout amounts and items are assembled from the authenticated user's cart.
-router.post("/checkout", checkoutLimiter, orderController.createCheckout);
-router.post("/:id/verify-payment", checkoutLimiter, orderController.verifyPayment);
+router.post("/checkout", authController.restrictTo("customer"), checkoutLimiter, orderController.createCheckout);
+router.post("/:id/verify-payment", authController.restrictTo("customer"), checkoutLimiter, orderController.verifyPayment);
+router.get("/my-assigned", authController.restrictTo("tailor"), orderController.getTailorOrders);
 
 router
     .route("/")
     .get(
-        authController.restrictTo("admin", "tailor"),
+        authController.restrictTo("master-admin", "tailor"),
         orderController.getAllOrders,
     );
 
@@ -34,14 +35,14 @@ router.route("/:id").get(orderController.getOrder);
 // Tailor & Admin Operations
 router.patch(
     "/:id/status",
-    authController.restrictTo("admin", "tailor"),
+    authController.restrictTo("master-admin", "tailor"),
     orderController.updateOrderStatus,
 );
 
 // Admin Only Operations
 router.patch(
     "/:id/assign-tailor",
-    authController.restrictTo("admin"),
+    authController.restrictTo("master-admin"),
     orderController.assignTailor,
 );
 

@@ -1,5 +1,6 @@
-const mongoose = require("mongoose");
+﻿const mongoose = require("mongoose");
 const validator = require("validator");
+const consultationSlots = require("../utils/consultationSlots");
 
 const consultationSchema = new mongoose.Schema(
     {
@@ -31,7 +32,11 @@ const consultationSchema = new mongoose.Schema(
         preferredTime: {
             type: String,
             required: true,
-            enum: ["10:00–12:00", "12:00–14:00", "14:00–16:00", "16:00–18:00"],
+            enum: consultationSlots.map((slot) => slot.value),
+        },
+        timeSlotKey: {
+            type: String,
+            enum: consultationSlots.map((slot) => slot.key),
         },
         consultationType: {
             type: String,
@@ -54,8 +59,24 @@ const consultationSchema = new mongoose.Schema(
             default: "requested",
             index: true,
         },
+        branch: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Branch",
+        },
     },
     { timestamps: true },
+);
+
+consultationSchema.index(
+    { branch: 1, preferredDate: 1, timeSlotKey: 1 },
+    {
+        unique: true,
+        name: "unique_active_consultation_slot_per_branch",
+        partialFilterExpression: {
+            status: { $in: ["requested", "confirmed"] },
+            timeSlotKey: { $type: "string" },
+        },
+    },
 );
 
 module.exports = mongoose.model("Consultation", consultationSchema);

@@ -21,6 +21,7 @@ router.patch("/updateMe", userController.updateMe);
 router.delete("/deleteMe", userController.deleteMe);
 
 // Account-backed fitting bag
+router.use("/me/cart", authController.restrictTo("customer"));
 router.get("/me/cart", userController.getMyCart);
 router.delete("/me/cart", userController.clearMyCart);
 router.post("/me/cart/items", userController.addCartItem);

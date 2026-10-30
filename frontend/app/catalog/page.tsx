@@ -2,11 +2,14 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
 import type { AxiosError } from "axios";
-import { ArrowRight, Clock3, Ruler, Search } from "lucide-react";
+import { ArrowRight, Clock3, Plus, Ruler, Search, X } from "lucide-react";
 import API from "@/lib/api";
 import type { Garment } from "@/types";
+import { useAuth } from "@/context/AuthContext";
 
 const categories = [
   "All pieces",
@@ -15,14 +18,40 @@ const categories = [
   "Lehengas",
 ] as const;
 
+const garmentCategories = [
+  "Lehengas",
+  "Sarees & Blouses",
+  "Kurtis & Sets",
+] as const;
+
 const PAGE_SIZE = 10;
 
-function ProductCard({ garment }: { garment: Garment }) {
+interface SelectedImage {
+  file: File;
+  preview: string;
+}
+
+interface BranchAvailability { isAvailable: boolean; globallyAvailable: boolean }
+
+function ProductCard({
+  garment,
+  branchAvailability,
+  isBranchManager,
+  isSavingAvailability,
+  onToggleAvailability,
+}: {
+  garment: Garment;
+  branchAvailability?: BranchAvailability;
+  isBranchManager: boolean;
+  isSavingAvailability: boolean;
+  onToggleAvailability: () => void;
+}) {
   const image = garment.images?.[0] || "/images/saree-card.webp";
 
   return (
-    <Link href={`/catalog/${garment._id}`} className="group block overflow-hidden rounded-[1.6rem] border border-[#e7ddcc] bg-[#fffdf8] shadow-[0_8px_30px_rgba(72,51,27,0.045)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_16px_38px_rgba(72,51,27,0.1)]">
-      <div className="relative aspect-[4/4.5] overflow-hidden bg-cream-200">
+    <article className="overflow-hidden rounded-[1.6rem] border border-[#e7ddcc] bg-[#fffdf8] shadow-[0_8px_30px_rgba(72,51,27,0.045)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_16px_38px_rgba(72,51,27,0.1)]">
+      <Link href={`/catalog/${garment._id}`} className="group block">
+        <div className="relative aspect-[4/4.5] overflow-hidden bg-cream-200">
         <Image
           src={image}
           alt={garment.name}
@@ -39,9 +68,9 @@ function ProductCard({ garment }: { garment: Garment }) {
           <Clock3 className="h-3.5 w-3.5" />
           {garment.estimatedDays} days
         </span>
-      </div>
+        </div>
 
-      <div className="p-5 sm:p-6">
+        <div className="p-5 sm:p-6">
         <div className="flex items-start justify-between gap-3">
           <h2 className="font-serif text-xl font-semibold leading-snug text-stone-900 sm:text-[22px]">
             {garment.name}
@@ -64,12 +93,33 @@ function ProductCard({ garment }: { garment: Garment }) {
             <ArrowRight className="h-3.5 w-3.5" />
           </span>
         </div>
-      </div>
-    </Link>
+        </div>
+      </Link>
+      {isBranchManager && branchAvailability && <div className="flex items-center justify-between gap-3 border-t border-[#eee5d7] bg-[#fffaf1] px-5 py-3.5 sm:px-6">
+        <span className={`text-xs font-medium ${branchAvailability.isAvailable ? "text-green-800" : "text-stone-600"}`}>
+          {branchAvailability.globallyAvailable ? (branchAvailability.isAvailable ? "Available at your branch" : "Unavailable at your branch") : "Disabled in catalog"}
+        </span>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={branchAvailability.isAvailable}
+          aria-label={`${branchAvailability.isAvailable ? "Mark unavailable" : "Mark available"}: ${garment.name}`}
+          disabled={!branchAvailability.globallyAvailable || isSavingAvailability}
+          onClick={onToggleAvailability}
+          className={`relative h-7 w-12 shrink-0 rounded-full transition disabled:cursor-not-allowed disabled:opacity-40 ${branchAvailability.isAvailable ? "bg-green-700" : "bg-stone-300"}`}
+        >
+          <span className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${branchAvailability.isAvailable ? "left-6" : "left-1"}`} />
+        </button>
+      </div>}
+    </article>
   );
 }
 
 export default function CatalogPage() {
+  const { user } = useAuth();
+  const router = useRouter();
+  const isMasterAdmin = user?.role === "master-admin";
+  const isBranchManager = user?.role === "branch-manager";
   const [garments, setGarments] = useState<Garment[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("All pieces");
   const [search, setSearch] = useState("");
@@ -79,10 +129,104 @@ export default function CatalogPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState(0);
+  const [branchAvailability, setBranchAvailability] = useState<Record<string, BranchAvailability>>({});
+  const [savingAvailabilityId, setSavingAvailabilityId] = useState("");
+  const [availabilityError, setAvailabilityError] = useState("");
+  const [isAddDressOpen, setIsAddDressOpen] = useState(false);
+  const [isSavingDress, setIsSavingDress] = useState(false);
+  const [createDressError, setCreateDressError] = useState("");
+  const [newItemCategory, setNewItemCategory] = useState("");
+  const [isCategoryMenuOpen, setIsCategoryMenuOpen] = useState(false);
+  const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
+  const imageObjectUrls = useRef(new Set<string>());
+
+  useEffect(() => {
+    if (user?.role === "tailor") router.replace("/tailor");
+  }, [user, router]);
+
+  useEffect(() => () => {
+    imageObjectUrls.current.forEach((preview) => URL.revokeObjectURL(preview));
+    imageObjectUrls.current.clear();
+  }, []);
+
+  const clearSelectedImages = () => {
+    imageObjectUrls.current.forEach((preview) => URL.revokeObjectURL(preview));
+    imageObjectUrls.current.clear();
+    setSelectedImages([]);
+  };
+
+  const handleAddDress = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    const formData = new FormData(formElement);
+    if (!newItemCategory) {
+      setCreateDressError("Please select a category.");
+      return;
+    }
+    if (selectedImages.some(({ file }) => file.size > 5 * 1024 * 1024)) {
+      setCreateDressError("Each image must be 5 MB or smaller.");
+      return;
+    }
+
+    setIsSavingDress(true);
+    setCreateDressError("");
+
+    try {
+      const payload = new FormData();
+      payload.append("name", String(formData.get("name") || "").trim());
+      payload.append("category", newItemCategory);
+      payload.append("description", String(formData.get("description") || "").trim());
+      payload.append("basePrice", String(formData.get("basePrice") || ""));
+      payload.append("estimatedDays", String(formData.get("estimatedDays") || "7"));
+      selectedImages.forEach(({ file }) => payload.append("images", file));
+
+      await API.post("/garments", payload, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+
+      formElement.reset();
+      clearSelectedImages();
+      setIsAddDressOpen(false);
+      setNewItemCategory("");
+      setIsCategoryMenuOpen(false);
+      setSelectedCategory("All pieces");
+      setSearch("");
+      setCurrentPage(1);
+      setRetry((count) => count + 1);
+    } catch (err) {
+      const apiError = err as AxiosError<{ message?: string }>;
+      setCreateDressError(
+        apiError.response?.data?.message || "We couldn’t add this dress. Please try again.",
+      );
+    } finally {
+      setIsSavingDress(false);
+    }
+  };
+
+  const toggleBranchAvailability = async (garmentId: string) => {
+    const currentAvailability = branchAvailability[garmentId];
+    if (!currentAvailability) return;
+    setSavingAvailabilityId(garmentId);
+    setAvailabilityError("");
+    try {
+      const response = await API.patch(`/manager/inventory/${garmentId}/availability`, {
+        isAvailable: !currentAvailability.isAvailable,
+      });
+      const updated = response.data.data.inventoryItem as BranchAvailability;
+      setBranchAvailability((current) => ({ ...current, [garmentId]: updated }));
+    } catch (err) {
+      const apiError = err as AxiosError<{ message?: string }>;
+      setAvailabilityError(apiError.response?.data?.message || "Could not update branch availability. Please try again.");
+    } finally {
+      setSavingAvailabilityId("");
+    }
+  };
 
   useEffect(() => {
     const category = new URLSearchParams(window.location.search).get("category");
     if (category && categories.includes(category as (typeof categories)[number])) {
+      // Initialize from the URL after hydration so the server render stays stable.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedCategory(category);
     }
   }, []);
@@ -105,9 +249,29 @@ export default function CatalogPage() {
 
         const response = await API.get("/garments", { params });
         if (isCurrent) {
-          setGarments(response.data.data.garments || []);
+          const fetchedGarments = response.data.data.garments || [];
+          setGarments(fetchedGarments);
           setTotalResults(response.data.totalResults ?? response.data.results ?? 0);
           setTotalPages(response.data.totalPages ?? 0);
+          setAvailabilityError("");
+          if (isBranchManager && fetchedGarments.length) {
+            try {
+              const inventoryResponse = await API.get("/manager/inventory", {
+                params: { ids: fetchedGarments.map((garment: Garment) => garment._id).join(",") },
+              });
+              if (isCurrent) {
+                const availability = (inventoryResponse.data.data.inventory || []) as (BranchAvailability & { _id: string })[];
+                setBranchAvailability(Object.fromEntries(availability.map((item) => [item._id, {
+                  isAvailable: item.isAvailable,
+                  globallyAvailable: item.globallyAvailable,
+                }])));
+              }
+            } catch {
+              if (isCurrent) setAvailabilityError("Branch availability could not be loaded. Refresh the collection to try again.");
+            }
+          } else {
+            setBranchAvailability({});
+          }
         }
       } catch (err) {
         const apiError = err as AxiosError<{ message?: string }>;
@@ -126,7 +290,9 @@ export default function CatalogPage() {
     return () => {
       isCurrent = false;
     };
-  }, [currentPage, retry, search, selectedCategory]);
+  }, [currentPage, retry, search, selectedCategory, isBranchManager]);
+
+  if (user?.role === "tailor") return <div className="flex min-h-[60vh] items-center justify-center text-sm text-stone-500">Opening your assigned work...</div>;
 
   return (
     <div className="min-h-screen bg-transparent pb-24 text-stone-900">
@@ -164,6 +330,7 @@ export default function CatalogPage() {
       </section>
 
       <section className="mx-auto max-w-7xl px-5 pt-9 sm:px-8 sm:pt-12">
+        {availabilityError && isBranchManager && <p role="alert" className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">{availabilityError}</p>}
         <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-wrap gap-2">
             {categories.map((category) => (
@@ -185,11 +352,29 @@ export default function CatalogPage() {
               </button>
             ))}
           </div>
-          {!loading && !error && (
-            <p className="text-xs text-stone-500">
-              {totalResults} {totalResults === 1 ? "piece" : "pieces"}
-            </p>
-          )}
+          <div className="flex items-center justify-between gap-4">
+            {!loading && !error && (
+              <p className="text-xs text-stone-500">
+                {totalResults} {totalResults === 1 ? "piece" : "pieces"}
+              </p>
+            )}
+            {isMasterAdmin && (
+              <button
+                type="button"
+                onClick={() => {
+                  setCreateDressError("");
+                  setNewItemCategory("");
+                  setIsCategoryMenuOpen(false);
+                  clearSelectedImages();
+                  setIsAddDressOpen(true);
+                }}
+                className="inline-flex shrink-0 items-center gap-2 rounded-full bg-[#853b20] px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-orange-800 sm:text-sm"
+              >
+                <Plus className="h-4 w-4" />
+                Add new
+              </button>
+            )}
+          </div>
         </div>
 
         {loading ? (
@@ -218,8 +403,8 @@ export default function CatalogPage() {
           </div>
         ) : garments.length ? (
           <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
-            {garments.map((garment) => (
-              <ProductCard key={garment._id} garment={garment} />
+              {garments.map((garment) => (
+              <ProductCard key={garment._id} garment={garment} isBranchManager={isBranchManager} branchAvailability={branchAvailability[garment._id]} isSavingAvailability={savingAvailabilityId === garment._id} onToggleAvailability={() => void toggleBranchAvailability(garment._id)} />
             ))}
           </div>
         ) : (
@@ -257,6 +442,157 @@ export default function CatalogPage() {
           </nav>
         )}
       </section>
+
+      {isAddDressOpen && isMasterAdmin && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-stone-950/50 p-4 backdrop-blur-sm"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !isSavingDress) setIsAddDressOpen(false);
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-dress-title"
+            className="my-auto w-full max-w-xl rounded-3xl border border-[#e7ddcc] bg-[#fffdf8] p-6 shadow-2xl sm:p-8"
+          >
+            <div className="mb-6 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-orange-800">Catalog management</p>
+                <h2 id="add-dress-title" className="mt-2 font-serif text-3xl text-stone-900">Add a catalog item</h2>
+                <p className="mt-2 text-sm text-stone-600">Add a new style to the collection.</p>
+              </div>
+              <button
+                type="button"
+                aria-label="Close add dress form"
+                disabled={isSavingDress}
+                onClick={() => setIsAddDressOpen(false)}
+                className="rounded-full p-2 text-stone-500 transition hover:bg-stone-100 hover:text-stone-900 disabled:opacity-50"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleAddDress} className="space-y-4">
+              <label className="block text-sm font-medium text-stone-700">
+                Item name
+                <input name="name" required maxLength={100} className="mt-1.5 w-full rounded-xl border border-[#ded2bf] bg-white px-4 py-3 text-sm outline-none focus:border-orange-700" />
+              </label>
+              <div className="relative text-sm font-medium text-stone-700">
+                <span id="new-item-category-label">Category</span>
+                <button
+                  type="button"
+                  aria-labelledby="new-item-category-label"
+                  aria-haspopup="listbox"
+                  aria-expanded={isCategoryMenuOpen}
+                  onClick={() => setIsCategoryMenuOpen((open) => !open)}
+                  className={`mt-1.5 flex w-full items-center justify-between rounded-xl border bg-white px-4 py-3 text-left outline-none transition focus:ring-2 focus:ring-orange-200 ${isCategoryMenuOpen ? "border-orange-700" : "border-[#ded2bf] hover:border-orange-400"}`}
+                >
+                  <span className={newItemCategory ? "text-stone-800" : "text-stone-400"}>
+                    {newItemCategory || "Select a category"}
+                  </span>
+                  <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className={`h-4 w-4 text-stone-600 transition-transform ${isCategoryMenuOpen ? "rotate-180" : ""}`}>
+                    <path d="m5 7.5 5 5 5-5" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
+                {isCategoryMenuOpen && (
+                  <div role="listbox" aria-labelledby="new-item-category-label" className="absolute inset-x-0 top-full z-20 mt-2 overflow-hidden rounded-2xl border border-[#e7ddcc] bg-[#fffdf8] p-1.5 shadow-xl shadow-stone-900/10">
+                    {garmentCategories.map((category) => (
+                      <button
+                        key={category}
+                        type="button"
+                        role="option"
+                        aria-selected={newItemCategory === category}
+                        onClick={() => {
+                          setNewItemCategory(category);
+                          setIsCategoryMenuOpen(false);
+                          setCreateDressError("");
+                        }}
+                        className={`w-full rounded-xl px-3.5 py-2.5 text-left transition ${newItemCategory === category ? "bg-orange-50 font-semibold text-orange-900" : "text-stone-700 hover:bg-[#f7f1e6] hover:text-stone-900"}`}
+                      >
+                        {category}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <label className="block text-sm font-medium text-stone-700">
+                Description
+                <textarea name="description" rows={3} maxLength={1000} className="mt-1.5 w-full resize-y rounded-xl border border-[#ded2bf] bg-white px-4 py-3 text-sm outline-none focus:border-orange-700" />
+              </label>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <label className="block text-sm font-medium text-stone-700">
+                  Price (₹)
+                  <input name="basePrice" type="number" min="0" step="1" required className="mt-1.5 w-full rounded-xl border border-[#ded2bf] bg-white px-4 py-3 text-sm outline-none focus:border-orange-700" />
+                </label>
+                <label className="block text-sm font-medium text-stone-700">
+                  Estimated tailoring days
+                  <input name="estimatedDays" type="number" min="1" max="365" defaultValue="7" required className="mt-1.5 w-full rounded-xl border border-[#ded2bf] bg-white px-4 py-3 text-sm outline-none focus:border-orange-700" />
+                </label>
+              </div>
+              <div>
+                <label htmlFor="garment-image-files" className="block text-sm font-medium text-stone-700">
+                  Upload images <span className="font-normal text-stone-500">(up to 5, JPG, PNG, or WebP; 5 MB each)</span>
+                </label>
+                <input
+                  id="garment-image-files"
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  multiple
+                  onChange={(event) => {
+                    const files = Array.from(event.target.files || []);
+                    clearSelectedImages();
+                    if (files.length > 5) {
+                      setCreateDressError("Choose no more than 5 images.");
+                      event.target.value = "";
+                      return;
+                    }
+                    setCreateDressError("");
+                    setSelectedImages(files.map((file) => {
+                      const preview = URL.createObjectURL(file);
+                      imageObjectUrls.current.add(preview);
+                      return { file, preview };
+                    }));
+                  }}
+                  className="mt-1.5 block w-full cursor-pointer rounded-xl border border-dashed border-[#d9c9b3] bg-[#fffaf1] text-sm text-stone-600 file:mr-4 file:cursor-pointer file:border-0 file:bg-[#853b20] file:px-4 file:py-3 file:font-semibold file:text-white hover:file:bg-orange-800"
+                />
+                {selectedImages.length > 0 && (
+                  <ul className="mt-3 flex flex-wrap gap-3">
+                    {selectedImages.map(({ file, preview }, index) => (
+                      <li key={`${file.name}-${index}`} className="relative">
+                        <Image src={preview} alt={`Selected garment image ${index + 1}`} width={64} height={80} unoptimized className="h-20 w-16 rounded-xl border border-[#e7ddcc] object-cover" />
+                        <button
+                          type="button"
+                          aria-label={`Remove image ${index + 1}`}
+                          onClick={() => {
+                            const [removed] = selectedImages.slice(index, index + 1);
+                            if (removed) {
+                              URL.revokeObjectURL(removed.preview);
+                              imageObjectUrls.current.delete(removed.preview);
+                            }
+                            setSelectedImages((files) => files.filter((_, fileIndex) => fileIndex !== index));
+                          }}
+                          className="absolute -right-2 -top-2 rounded-full bg-stone-900 p-1 text-white shadow transition hover:bg-red-700"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+              {createDressError && <p role="alert" className="rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{createDressError}</p>}
+
+              <div className="flex flex-col-reverse gap-3 pt-2 sm:flex-row sm:justify-end">
+                <button type="button" disabled={isSavingDress} onClick={() => setIsAddDressOpen(false)} className="rounded-full border border-[#ded2bf] px-5 py-3 text-sm font-semibold text-stone-700 transition hover:bg-stone-50 disabled:opacity-50">Cancel</button>
+                <button type="submit" disabled={isSavingDress} className="rounded-full bg-[#853b20] px-6 py-3 text-sm font-semibold text-white transition hover:bg-orange-800 disabled:cursor-wait disabled:opacity-60">
+                  {isSavingDress ? "Adding item…" : "Add new"}
+                </button>
+              </div>
+            </form>
+          </section>
+        </div>
+      )}
     </div>
   );
 }

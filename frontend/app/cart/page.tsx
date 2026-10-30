@@ -32,6 +32,9 @@ export default function CartPage() {
   const [checkoutError, setCheckoutError] = useState("");
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutScriptReady, setCheckoutScriptReady] = useState(false);
+  const [inventoryBlockedKey, setInventoryBlockedKey] = useState("");
+  const availabilityKey = JSON.stringify({ address, items: items.map((item) => [item.id, item.quantity]) });
+  const inventoryBlocked = inventoryBlockedKey === availabilityKey;
 
   useEffect(() => {
     const syncCartWhenReturning = () => {
@@ -63,6 +66,7 @@ export default function CartPage() {
   const updateAddress = (field: keyof typeof address, value: string) => {
     setAddress((current) => ({ ...current, [field]: value }));
     setCheckoutRequestId("");
+    setCheckoutError("");
   };
 
   const beginCheckout = async () => {
@@ -112,10 +116,17 @@ export default function CartPage() {
     } catch (requestError) {
       const failure = requestError as { response?: { status?: number; data?: { message?: string } } };
       if (await recoverAlreadyPaidCheckout(failure.response?.status, failure.response?.data?.message || "")) return;
-      setCheckoutError(failure.response?.data?.message || "We could not prepare secure checkout. Please try again.");
+      const message = failure.response?.data?.message || "We could not prepare secure checkout. Please try again.";
+      if (failure.response?.status === 409 && message.toLowerCase().startsWith("coming soon:")) setInventoryBlockedKey(availabilityKey);
+      setCheckoutError(message);
       setIsCheckingOut(false);
     }
   };
+
+  if (user && user.role !== "customer") {
+    const workspace = user.role === "branch-manager" ? "/manager" : user.role === "master-admin" ? "/admin" : "/catalog";
+    return <main className="flex min-h-[70vh] items-center justify-center px-5 py-16 text-center"><section className="max-w-md rounded-3xl border border-[#e7ddcc] bg-[#fffdf8] p-8 shadow-sm"><h1 className="font-serif text-3xl text-stone-900">Customer checkout</h1><p className="mt-3 text-sm leading-6 text-stone-600">Staff accounts manage atelier operations. Sign in with a customer account to place an order.</p><Link href={workspace} className="mt-6 inline-flex rounded-full bg-[#853b20] px-5 py-3 text-sm font-semibold text-white hover:bg-orange-800">Return to your workspace</Link></section></main>;
+  }
 
   return (
     <>
@@ -219,6 +230,7 @@ export default function CartPage() {
                       <p className="mt-1 text-xs text-stone-500">
                         Crafted in about {item.garment.estimatedDays} days
                       </p>
+
                     </div>
 
                     <div className="flex items-center justify-between gap-4">
@@ -269,10 +281,11 @@ export default function CartPage() {
                 <span>{formatPrice(subtotal)}</span>
               </div>
               <p className="mt-4 text-xs leading-5 text-stone-500">
-                Your fit details stay with the atelier. Delivery details are used only for this order.
+                Your fit details stay with the atelier. We’ll route your order to the closest atelier that has every selected piece available.
               </p>
               <form className="mt-6 space-y-3" onSubmit={(event) => { event.preventDefault(); void beginCheckout(); }}>
                 <h3 className="font-serif text-xl text-stone-900">Delivery details</h3>
+                <p className="text-xs leading-5 text-stone-500">At checkout, nearby branch availability is checked automatically. If a piece is unavailable everywhere, we’ll let you know.</p>
                 {([
                   ["street", "Street address"], ["city", "City"], ["state", "State"],
                   ["pincode", "PIN code"], ["phone", "Contact phone"],
@@ -292,10 +305,10 @@ export default function CartPage() {
                     />
                   </label>
                 ))}
-                {checkoutError && <p className="text-sm text-red-700" role="alert">{checkoutError}</p>}
+                {checkoutError && <div className={`rounded-xl border px-3.5 py-3 text-sm ${inventoryBlocked ? "border-amber-200 bg-amber-50 text-amber-900" : "border-red-200 bg-red-50 text-red-700"}`} role="alert"><p>{checkoutError}</p>{inventoryBlocked && <button type="button" onClick={() => { setInventoryBlockedKey(""); setCheckoutError(""); }} className="mt-2 font-semibold underline underline-offset-2">Check availability again</button>}</div>}
                 <button
                   type="submit"
-                  disabled={isCheckingOut || !checkoutScriptReady || !user}
+                  disabled={isCheckingOut || !checkoutScriptReady || !user || inventoryBlocked}
                   className="mt-2 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-full bg-[#853b20] px-5 py-3.5 text-sm font-semibold text-white transition hover:bg-orange-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isCheckingOut ? "Preparing secure checkout…" : checkoutScriptReady ? "Continue to secure payment" : "Loading secure checkout…"}

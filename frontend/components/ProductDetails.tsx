@@ -88,6 +88,10 @@ export default function ProductDetails({ garmentId }: { garmentId: string }) {
     };
   }, [garmentId]);
 
+  if (user?.role === "tailor") {
+    return <div className="flex min-h-[60vh] flex-col items-center justify-center px-5 text-center"><h1 className="font-serif text-3xl text-stone-900">Your assigned orders are in My work</h1><p className="mt-3 text-sm text-stone-600">Open an assigned order to view its garment, fit measurements, and production details.</p><Link href="/tailor" className="mt-6 rounded-full bg-[#853b20] px-5 py-3 text-sm font-semibold text-white hover:bg-orange-800">Open My work</Link></div>;
+  }
+
   if (loading) {
     return (
       <div className="mx-auto min-h-screen max-w-7xl px-5 py-16 sm:px-8">
@@ -465,7 +469,12 @@ export default function ProductDetails({ garmentId }: { garmentId: string }) {
             </div>
 
             <div className="mt-8">
-              {!authLoading && !user ? (
+              {user?.role === "branch-manager" ? (
+                <div className="rounded-2xl border border-[#e7ddcc] bg-[#fffaf1] px-4 py-4 text-center">
+                  <p className="text-sm font-medium text-stone-800">Branch managers manage availability from the collection.</p>
+                  <Link href="/catalog" className="mt-2 inline-flex text-sm font-semibold text-orange-800 underline underline-offset-2">Return to the collection</Link>
+                </div>
+              ) : !authLoading && !user ? (
                 <div className="space-y-3">
                   <Link
                     href={loginHref}

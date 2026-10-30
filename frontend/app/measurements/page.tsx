@@ -30,6 +30,8 @@ export default function MeasurementsPage() {
   const [notes, setNotes] = useState("");
 
   useEffect(() => {
+    // Keep editable profile state synchronized with the auth context.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setProfiles(user?.measurements || []);
   }, [user?.measurements]);
 
@@ -462,7 +464,7 @@ export default function MeasurementsPage() {
 
               {profile.notes && (
                 <p className="text-xs text-gray-500 italic bg-orange-50/60 p-2.5 rounded-lg border border-orange-100">
-                  "{profile.notes}"
+                  &quot;{profile.notes}&quot;
                 </p>
               )}
             </div>

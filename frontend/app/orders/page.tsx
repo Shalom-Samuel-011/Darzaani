@@ -9,8 +9,8 @@ import { Order } from "@/types";
 
 const ORDER_STEPS = [
     { key: "order_placed", label: "Placed" },
-    { key: "awaiting_fabric", label: "Awaiting Fabric" },
-    { key: "fabric_received", label: "Fabric Received" },
+    { key: "assigned_to_tailor", label: "Tailor assigned" },
+    { key: "cutting", label: "Cutting" },
     { key: "stitching", label: "Stitching" },
     { key: "trial_ready", label: "Trial Ready" },
     { key: "dispatched", label: "Dispatched" },
@@ -204,13 +204,6 @@ export default function OrdersPage() {
                                                         ` (${item.selectedStandardSize})`}
                                                     {item.selectedColor && ` · Colour: ${item.selectedColor}`}
                                                     {item.quantity > 1 && ` · Qty: ${item.quantity}`}
-                                                    | Fabric:{" "}
-                                                    <strong className="text-gray-700">
-                                                        {item.fabricSource ===
-                                                            "provided_by_customer"
-                                                                ? "Customer Provided"
-                                                                : "Boutique Sourced"}
-                                                    </strong>
                                                 </p>
                                                 {item.customizationNotes && (
                                                     <p className="text-xs text-gray-600 mt-1 italic">
@@ -234,7 +227,7 @@ export default function OrdersPage() {
                                     <h4 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
                                         Stitching Progress
                                     </h4>
-                                    <div className="grid grid-cols-7 gap-1 text-center">
+                                    <div className="grid grid-cols-4 gap-y-3 text-center sm:grid-cols-8">
                                         {ORDER_STEPS.map((step, idx) => {
                                             const isCompleted =
                                                 idx <= currentStep;

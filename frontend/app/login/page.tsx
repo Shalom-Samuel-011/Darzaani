@@ -6,10 +6,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import type { Variants } from "framer-motion";
-import { Mail, Lock, ArrowRight, Eye, EyeOff, Sparkles } from "lucide-react";
+import { Mail, Lock, ArrowRight, Eye, EyeOff, Sparkles, UserCog, Building2, Hammer, User } from "lucide-react";
 import type { AxiosError } from "axios";
 import API from "@/lib/api";
-import { getSafeReturnPath } from "@/lib/redirect";
+import { getSafeReturnPath, getLoginRedirect } from "@/lib/redirect";
 import { useAuth } from "@/context/AuthContext";
 import GoogleAuthButton from "@/components/GoogleAuthButton";
 
@@ -37,6 +37,53 @@ const inputVariants: Variants = {
   blur: { scale: 1, borderColor: "#fbf3de" },
 };
 
+const ROLE_OPTIONS = [
+  {
+    role: "master-admin",
+    label: "Master Admin",
+    description: "Platform owner — manage all branches, staff & settings",
+    icon: UserCog,
+    bg: "bg-purple-50",
+    border: "border-purple-200",
+    text: "text-purple-700",
+    demoEmail: "admin@darzaani.com",
+    demoPassword: "Admin123",
+  },
+  {
+    role: "branch-manager",
+    label: "Branch Manager",
+    description: "Manage one branch — orders, tailors, inventory",
+    icon: Building2,
+    bg: "bg-blue-50",
+    border: "border-blue-200",
+    text: "text-blue-700",
+    demoEmail: "manager@darzaani.com",
+    demoPassword: "Manager123",
+  },
+  {
+    role: "tailor",
+    label: "Tailor",
+    description: "View your assigned work and update production stages",
+    icon: Hammer,
+    bg: "bg-green-50",
+    border: "border-green-200",
+    text: "text-green-700",
+    demoEmail: "tailor@darzaani.com",
+    demoPassword: "Tailor123",
+  },
+  {
+    role: "customer",
+    label: "Customer",
+    description: "Place orders, track progress, view history",
+    icon: User,
+    bg: "bg-orange-50",
+    border: "border-orange-200",
+    text: "text-orange-700",
+    demoEmail: "customer@darzaani.com",
+    demoPassword: "Customer123",
+  },
+] as const;
+
 export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -44,10 +91,13 @@ export default function LoginPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [returnPath, setReturnPath] = useState("/catalog");
+  const [selectedRole, setSelectedRole] = useState<typeof ROLE_OPTIONS[number] | null>(ROLE_OPTIONS[3]); // Default to Customer
   const { login } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
+    // Read the browser URL after hydration so server and client start from the same state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setReturnPath(getSafeReturnPath());
   }, []);
 
@@ -62,7 +112,7 @@ export default function LoginPage() {
         password,
       });
       login(res.data.token, res.data.data.user);
-      router.push(getSafeReturnPath());
+      router.push(getLoginRedirect(res.data.data.user.role));
     } catch (err) {
       const error = err as AxiosError<{ message?: string }>;
       const errorMessage =
@@ -106,6 +156,70 @@ export default function LoginPage() {
           <p className="mt-2 text-sm text-gray-500">
             Sign in to manage your custom orders & measurements
           </p>
+        </motion.div>
+
+        {/* Demo Role Selector */}
+        <motion.div variants={fadeInUp} className="mb-6">
+          <p className="text-center text-xs font-medium text-gray-500 mb-3">Quick Demo Access</p>
+          <div className="grid grid-cols-2 gap-3">
+            {ROLE_OPTIONS.map((option) => {
+              const Icon = option.icon;
+              const isSelected = selectedRole?.role === option.role;
+              return (
+                <motion.button
+                  key={option.role}
+                  type="button"
+                  onClick={() => {
+                    setSelectedRole(option);
+                    setEmail(option.demoEmail);
+                    setPassword(option.demoPassword);
+                    setError("");
+                  }}
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className={`relative p-4 rounded-xl border-2 transition-all duration-200 text-left ${
+                    isSelected
+                      ? `${option.border} ${option.bg} ring-2 ring-offset-2 ring-offset-white`
+                      : "border-cream-200 bg-white hover:border-orange-300"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`flex-shrink-0 w-10 h-10 rounded-lg flex items-center justify-center ${
+                        isSelected ? `${option.text} bg-white` : `${option.text} ${option.bg}`
+                      }`}
+                    >
+                      <Icon className="w-5 h-5" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm font-semibold ${isSelected ? option.text : "text-gray-800"}`}>
+                        {option.label}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5 truncate">{option.description}</p>
+                    </div>
+                    {isSelected && (
+                      <div className="absolute -top-2 -right-2 w-6 h-6 rounded-full bg-green-500 flex items-center justify-center">
+                        <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                    )}
+                  </div>
+                </motion.button>
+              );
+            })}
+          </div>
+          {selectedRole && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mt-4 p-3 rounded-xl bg-cream-50 border border-cream-200 text-center"
+            >
+              <p className="text-xs text-gray-600">
+                Demo credentials filled in. Select Sign In below
+              </p>
+            </motion.div>
+          )}
         </motion.div>
 
         {/* Login Card */}

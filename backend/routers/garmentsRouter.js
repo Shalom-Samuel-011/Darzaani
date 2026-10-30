@@ -1,6 +1,7 @@
 const express = require("express");
 const garmentController = require("../controllers/garmentsController");
 const authController = require("../controllers/authController");
+const { uploadGarmentImages } = require("../middleware/garmentImageUpload");
 
 const router = express.Router();
 
@@ -10,9 +11,9 @@ router.get("/:id", garmentController.getGarment);
 
 // Restricted to Authenticated Admins
 router.use(authController.protect);
-router.use(authController.restrictTo("admin"));
+router.use(authController.restrictTo("master-admin"));
 
-router.post("/", garmentController.createGarment);
+router.post("/", uploadGarmentImages, garmentController.createGarment);
 router
     .route("/:id")
     .patch(garmentController.updateGarment)

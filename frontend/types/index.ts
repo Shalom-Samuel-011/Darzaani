@@ -29,12 +29,31 @@ export interface MeasurementProfile {
     notes?: string;
 }
 
+export interface Branch {
+    _id: string;
+    name: string;
+    code: string;
+    address: {
+        street: string;
+        city: string;
+        state: string;
+        pincode: string;
+    };
+    phone: string;
+    location: {
+        type: "Point";
+        coordinates: [number, number]; // [longitude, latitude]
+    };
+    distanceKm?: string;
+}
+
 export interface User {
     _id: string;
     name: string;
     email: string;
     phone?: string;
-    role: "customer" | "tailor" | "admin";
+    role: "master-admin" | "branch-manager" | "tailor" | "customer";
+    branch?: string;
     measurements: MeasurementProfile[];
 }
 
@@ -72,7 +91,6 @@ export interface OrderItem {
     sizingTypeUsed: "custom" | "standard";
     selectedStandardSize?: "XS" | "S" | "M" | "L" | "XL" | "XXL" | "Free Size";
     measurementSnapshot?: MeasurementProfile;
-    fabricSource: "provided_by_customer" | "provided_by_boutique";
     fabricDetails?: string;
     customizationNotes?: string;
     referenceImages?: string[];
@@ -85,19 +103,11 @@ export interface Order {
     _id: string;
     customer: User | string;
     assignedTailor?: User | string;
+    branch?: Branch | string;
     items: OrderItem[];
-    fabricPickupRequired: boolean;
-    fabricPickupDetails?: {
-        address: string;
-        pickupDate: string;
-        timeSlot: string;
-        status: "pending" | "scheduled" | "picked_up" | "received_at_boutique";
-    };
     status:
         | "payment_pending"
         | "order_placed"
-        | "awaiting_fabric"
-        | "fabric_received"
         | "assigned_to_tailor"
         | "cutting"
         | "stitching"
@@ -124,4 +134,12 @@ export interface Order {
         phone: string;
     };
     createdAt: string;
+    workflowHistory?: {
+        type: "payment_confirmed" | "tailor_assigned" | "status_changed";
+        fromStatus?: string;
+        toStatus?: string;
+        actor?: User | string;
+        note?: string;
+        createdAt: string;
+    }[];
 }

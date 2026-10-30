@@ -53,6 +53,12 @@ const garmentSchema = new mongoose.Schema(
             type: Boolean,
             default: true,
         },
+        branchAvailability: [{
+            branch: { type: mongoose.Schema.Types.ObjectId, ref: "Branch", required: true },
+            isAvailable: { type: Boolean, required: true, default: true },
+            updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+            updatedAt: { type: Date, default: Date.now },
+        }],
         // Additional fabric/style specifications if needed
         attributes: {
             type: Map,

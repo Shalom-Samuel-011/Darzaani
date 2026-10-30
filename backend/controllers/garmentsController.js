@@ -1,6 +1,7 @@
 const Garment = require("../models/garmentsModel");
 const AppError = require("../utils/appError");
 const APIFeatures = require("../utils/apifeatures");
+const fs = require("fs/promises");
 
 // 1. Get All Garments (With Filtering, Sorting & Pagination)
 exports.getAllGarments = async (req, res, next) => {
@@ -66,14 +67,34 @@ exports.getGarment = async (req, res, next) => {
 
 // 3. Create New Garment (Admin Only)
 exports.createGarment = async (req, res, next) => {
-    const newGarment = await Garment.create(req.body);
+    const uploadedFiles = req.files || [];
+    const urlImages = String(req.body.imageUrls || "")
+        .split(/\r?\n/)
+        .map((url) => url.trim())
+        .filter(Boolean);
+    const existingImages = Array.isArray(req.body.images) ? req.body.images : [];
+    const uploadedImages = uploadedFiles.map(
+        (file) => `${req.protocol}://${req.get("host")}/uploads/${file.filename}`,
+    );
 
-    res.status(201).json({
-        status: "success",
-        data: {
-            garment: newGarment,
-        },
-    });
+    try {
+        const newGarment = await Garment.create({
+            ...req.body,
+            images: [...existingImages, ...urlImages, ...uploadedImages],
+        });
+
+        res.status(201).json({
+            status: "success",
+            data: {
+                garment: newGarment,
+            },
+        });
+    } catch (error) {
+        await Promise.all(
+            uploadedFiles.map((file) => fs.unlink(file.path).catch(() => {})),
+        );
+        next(error);
+    }
 };
 
 // 4. Update Garment (Admin Only)

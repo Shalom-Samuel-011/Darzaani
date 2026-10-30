@@ -24,6 +24,8 @@ const collections = [
             ["Linen Jamdani Saree", "Breathable linen with fine Jamdani-inspired motifs for a modern heirloom feel.", 6900, 14, "Linen-cotton"],
             ["Embroidered Georgette Saree", "Fluid georgette with tonal thread embroidery and a softly finished edge.", 9800, 17, "Embroidered georgette"],
             ["Mysore Crepe Silk Saree", "Smooth crepe silk in a deep jewel tone with a minimal contrast border.", 10500, 18, "Mysore crepe silk"],
+            ["Kora Silk Check Saree", "A lightweight Kora silk drape with a fine woven check and a contrast blouse piece.", 9200, 16, "Kora silk"],
+            ["Rust Ajrakh Drape", "A rich rust-toned drape with Ajrakh-inspired motifs and a coordinated tailored blouse.", 7900, 15, "Printed cotton-silk"],
         ],
     },
     {
@@ -41,6 +43,8 @@ const collections = [
             ["Silk Blend Palazzo Kurta Set", "A contemporary long kurta and fluid palazzo set with understated metallic detailing.", 7900, 15, "Silk blend"],
             ["Floral Threadwork Kurta Set", "Fine floral threadwork brings a soft, occasion-ready finish to this coordinated set.", 8500, 16, "Viscose silk"],
             ["A-Line Chikankari Kurta Set", "An A-line kurta with airy Chikankari-inspired embroidery and tapered trousers.", 6400, 13, "Cotton"],
+            ["Marigold Aari Kurta Set", "A warm marigold kurta set with delicate Aari-inspired detailing for daytime celebrations.", 7600, 14, "Cotton-silk"],
+            ["Ink Blue A-Line Kurta Set", "An ink-blue A-line silhouette with a clean neckline, tapered trousers, and a light dupatta.", 5900, 12, "Viscose cotton"],
         ],
     },
     {
@@ -58,6 +62,8 @@ const collections = [
             ["Marigold Sangeet Lehenga", "A bright marigold lehenga with movement and light embroidery for the dance floor.", 19800, 23, "Georgette"],
             ["Burgundy Banarasi Lehenga", "Burgundy brocade with heirloom-inspired motifs and a blouse fitted to your measurements.", 31200, 28, "Banarasi brocade"],
             ["Champagne Sequin Lehenga", "A champagne-toned lehenga with subtle sequin work and a soft, fluid silhouette.", 27900, 27, "Net and satin"],
+            ["Seafoam Threadwork Lehenga", "A soft seafoam lehenga with fine floral threadwork and a made-to-measure blouse.", 23800, 25, "Silk organza"],
+            ["Coral Gota Patti Lehenga", "A festive coral lehenga finished with light Gota Patti accents and a graceful flare.", 25700, 26, "Georgette and silk"],
         ],
     },
 ];

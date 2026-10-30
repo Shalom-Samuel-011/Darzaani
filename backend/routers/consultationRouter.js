@@ -16,6 +16,7 @@ const consultationRequestLimiter = rateLimit({
 });
 
 // Anyone may request a consultation; account creation is not required.
+router.get("/availability", consultationController.getConsultationAvailability);
 router.post("/", consultationRequestLimiter, consultationController.createConsultation);
 
 // Atelier staff manage submitted requests from authenticated admin accounts.

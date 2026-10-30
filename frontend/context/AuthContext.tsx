@@ -4,7 +4,6 @@ import React, {
   createContext,
   useContext,
   useState,
-  useRef,
   useCallback,
   ReactNode,
   useEffect,
@@ -32,20 +31,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
-  // Use a ref for router so we don't need it at render time (avoids SSR issues).
-  // We import dynamically only when we actually need to navigate.
-  const routerRef = useRef<ReturnType<
-    typeof import("next/navigation")["useRouter"]
-  > | null>(null);
-
-  // Stable logout — useCallback so the interceptor closure always gets the
-  // latest version without needing it as a dep.
+  // A full navigation prevents protected page effects from racing the logout
+  // destination after the authenticated user state is cleared.
   const logout = useCallback((redirectTo = "/") => {
     localStorage.removeItem("darzani_token");
     localStorage.removeItem("darzani_user");
     setToken(null);
     setUser(null);
-    routerRef.current?.push(redirectTo);
+    if (typeof window !== "undefined") window.location.replace(redirectTo);
   }, []);
 
   const checkAuth = useCallback(async () => {
@@ -61,11 +54,36 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           localStorage.setItem("darzani_user", JSON.stringify(freshUser));
         }
       }
-    } catch {
-      // Token invalid or expired — clear it silently
-      if (localStorage.getItem("darzani_token") === currentToken) {
-        const currentPath = `${window.location.pathname}${window.location.search}`;
-        logout(`/login?redirect=${encodeURIComponent(currentPath)}`);
+    } catch (error) {
+      // Differentiate between auth errors (401/403) and network/other errors
+      const axiosError = error as { response?: { status?: number; data?: { message?: string } } };
+      const status = axiosError.response?.status;
+      const isAuthError = status === 401 || status === 403;
+
+      if (isAuthError) {
+        // Token is truly invalid/expired — clear it and redirect
+        if (localStorage.getItem("darzani_token") === currentToken) {
+          const currentPath = `${window.location.pathname}${window.location.search}`;
+          logout(`/login?redirect=${encodeURIComponent(currentPath)}`);
+        }
+      } else if (!navigator.onLine) {
+        // Offline — don't logout, just keep existing token/user state
+        // The token remains valid; we'll revalidate when connectivity returns
+        if (currentToken) {
+          // Try to restore user from localStorage if we have it
+          const cachedUser = localStorage.getItem("darzani_user");
+          if (cachedUser) {
+            try {
+              setUser(JSON.parse(cachedUser));
+            } catch {
+              // Ignore parse errors
+            }
+          }
+        }
+      } else {
+        // Other network/server errors (500, timeout, etc.) — don't logout
+        // Keep the current token/user state and let user retry manually
+        console.warn("Auth check failed, retaining current session:", axiosError.response?.data?.message || error);
       }
     } finally {
       setIsLoading(false);
@@ -91,14 +109,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         const authorization = originalRequest?.headers?.Authorization || originalRequest?.headers?.get?.("Authorization");
         const storedToken = localStorage.getItem("darzani_token");
         const responseIsForCurrentSession = !authorization || authorization === `Bearer ${storedToken}`;
+
+        // Only handle 401 if it's a true auth error (not network failure)
         if (error.response?.status === 401 && !isPublicAuthRequest && responseIsForCurrentSession) {
           const currentPath = `${window.location.pathname}${window.location.search}`;
           logout(`/login?redirect=${encodeURIComponent(currentPath)}`);
+        } else if (!error.response && !navigator.onLine) {
+          // Network error while offline - don't logout, let the request fail naturally
+          // The user will see the error in the UI and can retry when back online
+        } else if (error.response?.status >= 500) {
+          // Server errors (5xx) - don't logout, let the request fail naturally
+          // User can retry the action
         }
         return Promise.reject(error);
       }
     );
 
+    // Restore the browser session after hydration; this intentionally updates auth state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     checkAuth();
 
     return () => {
@@ -135,27 +163,10 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         checkAuth,
       }}
     >
-      <RouterCapture ref={routerRef} />
       {children}
     </AuthContext.Provider>
   );
 };
-
-// Tiny client component that grabs the router and stores it in the ref.
-// This is the correct way to use useRouter inside a provider without
-// calling it at the top level before hydration.
-import { useRouter } from "next/navigation";
-import { forwardRef, useImperativeHandle } from "react";
-
-const RouterCapture = forwardRef<
-  ReturnType<typeof useRouter> | null,
-  object
->((_props, ref) => {
-  const router = useRouter();
-  useImperativeHandle(ref, () => router, [router]);
-  return null;
-});
-RouterCapture.displayName = "RouterCapture";
 
 export const useAuth = () => {
   const context = useContext(AuthContext);

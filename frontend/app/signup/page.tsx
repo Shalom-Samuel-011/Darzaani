@@ -62,6 +62,8 @@ export default function SignupPage() {
   const router = useRouter();
 
   useEffect(() => {
+    // Read the browser URL after hydration so server and client start from the same state.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setReturnPath(getSafeReturnPath());
   }, []);
 

@@ -46,11 +46,6 @@ const orderItemSchema = new mongoose.Schema({
         crossBack: Number,
         notes: String,
     },
-    fabricSource: {
-        type: String,
-        enum: ["provided_by_customer", "provided_by_boutique"],
-        required: [true, "Please specify fabric source"],
-    },
     fabricDetails: {
         type: String,
         trim: true,
@@ -79,6 +74,11 @@ const orderSchema = new mongoose.Schema(
             ref: "User",
             required: [true, "An order must belong to a customer"],
         },
+        branch: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Branch",
+            index: true,
+        },
         assignedTailor: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
@@ -91,35 +91,12 @@ const orderSchema = new mongoose.Schema(
             ],
         },
 
-        // Fabric Pickup details (if customer provides fabric)
-        fabricPickupRequired: {
-            type: Boolean,
-            default: false,
-        },
-        fabricPickupDetails: {
-            address: String,
-            pickupDate: Date,
-            timeSlot: String,
-            status: {
-                type: String,
-                enum: [
-                    "pending",
-                    "scheduled",
-                    "picked_up",
-                    "received_at_boutique",
-                ],
-                default: "pending",
-            },
-        },
-
         // Stitching Status Pipeline
         status: {
             type: String,
             enum: [
                 "payment_pending",
                 "order_placed",
-                "awaiting_fabric",
-                "fabric_received",
                 "assigned_to_tailor",
                 "cutting",
                 "stitching",
@@ -167,6 +144,14 @@ const orderSchema = new mongoose.Schema(
             phone: { type: String, required: true },
         },
         estimatedCompletionDate: Date,
+        workflowHistory: [{
+            type: { type: String, enum: ["payment_confirmed", "tailor_assigned", "status_changed"], required: true },
+            fromStatus: String,
+            toStatus: String,
+            actor: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+            note: { type: String, trim: true, maxlength: 500 },
+            createdAt: { type: Date, default: Date.now },
+        }],
     },
     {
         timestamps: true,

@@ -2,12 +2,9 @@
 
 import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useState } from "react";
-import { Noto_Sans_Devanagari } from "next/font/google";
 
-const devanagariFont = Noto_Sans_Devanagari({
-  weight: ["600", "700"],
-  subsets: ["devanagari", "latin"],
-});
+
+const devanagariFontFamily = '"Noto Sans Devanagari", "Nirmala UI", Mangal, sans-serif';
 
 interface BrandEntranceProps {
   onFadeStart?: () => void;
@@ -86,7 +83,7 @@ export default function BrandEntrance({ onFadeStart, onComplete }: BrandEntrance
                 strokeLinejoin="round"
                 filter="url(#subtleGlow)"
                 style={{
-                  fontFamily: devanagariFont.style.fontFamily,
+                  fontFamily: devanagariFontFamily,
                   fontSize: "92px",
                   fontWeight: 600,
                   letterSpacing: "4px",
@@ -99,7 +96,7 @@ export default function BrandEntrance({ onFadeStart, onComplete }: BrandEntrance
                 }}
               >
                 <tspan fontFamily="Playfair Display, Georgia, serif">Dar</tspan>
-                <tspan fontFamily={devanagariFont.style.fontFamily}>ज़</tspan>
+                <tspan fontFamily={devanagariFontFamily}>ज़</tspan>
                 <tspan fontFamily="Playfair Display, Georgia, serif">aani</tspan>
               </motion.text>
 
@@ -120,7 +117,7 @@ export default function BrandEntrance({ onFadeStart, onComplete }: BrandEntrance
                 transition={{ delay: 1.3, duration: 0.7, ease: "easeOut" }}
               >
                 <tspan fontFamily="Playfair Display, Georgia, serif">Dar</tspan>
-                <tspan fontFamily={devanagariFont.style.fontFamily}>ज़</tspan>
+                <tspan fontFamily={devanagariFontFamily}>ज़</tspan>
                 <tspan fontFamily="Playfair Display, Georgia, serif">aani</tspan>
               </motion.text>
             </svg>

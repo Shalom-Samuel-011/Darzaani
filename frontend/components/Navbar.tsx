@@ -5,13 +5,8 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useAuth } from "@/context/AuthContext";
 import { Menu, ShoppingBag, X } from "lucide-react";
 import { useState } from "react";
-import { Noto_Sans_Devanagari } from "next/font/google";
 import { useCart } from "@/context/CartContext";
 
-const devanagariFont = Noto_Sans_Devanagari({
-  weight: ["600", "700"],
-  subsets: ["devanagari", "latin"],
-});
 
 const navLinkClass =
   "rounded-full px-4 py-2 text-[13px] font-medium tracking-wide text-stone-700 transition-colors hover:bg-white/70 hover:text-orange-800";
@@ -28,12 +23,12 @@ export default function Navbar() {
       <div className="mx-auto max-w-[1440px] px-5 sm:px-8 lg:px-12">
         <div className="flex h-[76px] items-center justify-between">
           <Link
-            href="/#top"
+            href={user?.role === "master-admin" ? "/admin" : user?.role === "branch-manager" ? "/manager" : user?.role === "tailor" ? "/tailor" : "/#top"}
             className="group flex items-center gap-3"
             aria-label="Darzaani Atelier home"
           >
             <span className="font-serif text-[27px] font-semibold tracking-[-0.045em] text-[#853b20] transition-colors group-hover:text-orange-800 sm:text-[29px]">
-              Dar<span className={`${devanagariFont.className} text-[#bd5d35]`}>ज़</span>aani
+              Dar<span className="text-[#bd5d35]" style={{ fontFamily: '"Noto Sans Devanagari", "Nirmala UI", Mangal, sans-serif' }}>ज़</span>aani
             </span>
             <span className="hidden border-l border-[#d6c8af] py-1 pl-3 text-[9px] font-medium uppercase tracking-[0.25em] text-[#92795c] sm:block">
               Atelier
@@ -41,23 +36,43 @@ export default function Navbar() {
           </Link>
 
           <div className="hidden items-center gap-1 rounded-full border border-[#e3d8c6]/80 bg-white/35 p-1.5 md:flex">
-            <Link href="/#collections" className={navLinkClass}>
-              Collections
-            </Link>
-            {user && (
+            {user?.role === "master-admin" ? (
               <>
-                <Link href="/measurements" className={navLinkClass}>
-                  My measurements
+                <Link href="/admin" className={navLinkClass}>
+                  Dashboard
                 </Link>
-                <Link href="/orders" className={navLinkClass}>
-                  My orders
+                <Link href="/catalog" className={navLinkClass}>
+                  Collections
                 </Link>
+              </>
+            ) : user?.role === "branch-manager" ? (
+              <>
+                <Link href="/manager" className={navLinkClass}>Branch dashboard</Link>
+                <Link href="/catalog" className={navLinkClass}>Collections</Link>
+              </>
+            ) : user?.role === "tailor" ? (
+              <Link href="/tailor" className={navLinkClass}>My work</Link>
+            ) : (
+              <>
+                <Link href="/catalog" className={navLinkClass}>
+                  Collections
+                </Link>
+                {user && (
+                  <>
+                    <Link href="/measurements" className={navLinkClass}>
+                      My measurements
+                    </Link>
+                    <Link href="/orders" className={navLinkClass}>
+                      My orders
+                    </Link>
+                  </>
+                )}
               </>
             )}
           </div>
 
           <div className="flex items-center gap-3 sm:gap-5">
-            {user && (
+            {user?.role === "customer" && (
               <Link
                 href="/cart"
                 aria-label={`Fitting bag, ${itemCount} ${itemCount === 1 ? "item" : "items"}`}
@@ -75,11 +90,19 @@ export default function Navbar() {
 
             {user ? (
               <>
-                <span className="hidden text-xs text-stone-600 lg:block">
+                <span className="hidden items-center gap-1.5 text-xs text-stone-600 lg:flex">
                   Welcome, <strong className="font-semibold text-stone-800">{user.name}</strong>
+                  {user.role === "master-admin" && (
+                    <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-purple-800">
+                      Admin
+                    </span>
+                  )}
+                  {user.role === "branch-manager" && (
+                    <span className="rounded-full bg-orange-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-orange-900">Branch manager</span>
+                  )}
                 </span>
                 <motion.button
-                  onClick={() => logout()}
+                  onClick={() => logout("/")}
                   whileTap={{ scale: 0.97 }}
                   className="rounded-full border border-[#d9cbb5] px-4 py-2 text-xs font-semibold text-stone-700 transition hover:border-orange-700 hover:text-orange-800"
                 >
@@ -125,17 +148,37 @@ export default function Navbar() {
               className="overflow-hidden md:hidden"
             >
               <div className="flex flex-col gap-1 border-t border-[#dfd4c1]/80 py-3">
-                <Link href="/#collections" onClick={closeMobileMenu} className={navLinkClass}>
-                  Collections
-                </Link>
-                {user && (
+                {user?.role === "master-admin" ? (
                   <>
-                    <Link href="/measurements" onClick={closeMobileMenu} className={navLinkClass}>
-                      My measurements
+                    <Link href="/admin" onClick={closeMobileMenu} className={navLinkClass}>
+                      Dashboard
                     </Link>
-                    <Link href="/orders" onClick={closeMobileMenu} className={navLinkClass}>
-                      My orders
+                    <Link href="/catalog" onClick={closeMobileMenu} className={navLinkClass}>
+                      Collections
                     </Link>
+                  </>
+                ) : user?.role === "branch-manager" ? (
+                  <>
+                    <Link href="/manager" onClick={closeMobileMenu} className={navLinkClass}>Branch dashboard</Link>
+                    <Link href="/catalog" onClick={closeMobileMenu} className={navLinkClass}>Collections</Link>
+                  </>
+                ) : user?.role === "tailor" ? (
+                  <Link href="/tailor" onClick={closeMobileMenu} className={navLinkClass}>My work</Link>
+                ) : (
+                  <>
+                    <Link href="/catalog" onClick={closeMobileMenu} className={navLinkClass}>
+                      Collections
+                    </Link>
+                    {user && (
+                      <>
+                        <Link href="/measurements" onClick={closeMobileMenu} className={navLinkClass}>
+                          My measurements
+                        </Link>
+                        <Link href="/orders" onClick={closeMobileMenu} className={navLinkClass}>
+                          My orders
+                        </Link>
+                      </>
+                    )}
                   </>
                 )}
                 {!user && (

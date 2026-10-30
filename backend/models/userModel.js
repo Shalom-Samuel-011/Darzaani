@@ -77,8 +77,12 @@ const userSchema = new mongoose.Schema(
         },
         role: {
             type: String,
-            enum: ["customer", "tailor", "admin"],
+            enum: ["master-admin", "branch-manager", "tailor", "customer"],
             default: "customer",
+        },
+        branch: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Branch",
         },
 
         googleId: {

@@ -24,7 +24,27 @@ mongoose
     .then(async () => {
         console.log("DB connection successful!");
 
+        // Seed demo users in development only
         if (process.env.NODE_ENV !== "production") {
+            const User = require("./models/userModel");
+            const demoUsers = [
+                { name: "Master Admin", email: "admin@darzaani.com", password: "Admin123", role: "master-admin" },
+                { name: "Branch Manager", email: "manager@darzaani.com", password: "Manager123", role: "branch-manager" },
+                { name: "Senior Tailor", email: "tailor@darzaani.com", password: "Tailor123", role: "tailor" },
+                { name: "Demo Customer", email: "customer@darzaani.com", password: "Customer123", role: "customer" },
+            ];
+
+            for (const user of demoUsers) {
+                const exists = await User.findOne({ email: user.email });
+                if (!exists) {
+                    await User.create(user);
+                    console.log(`  Created demo user: ${user.email} (${user.role})`);
+                }
+            }
+        }
+
+        if (process.env.NODE_ENV !== "production") {
+            // ... existing garment seeding code ...
             const garmentCount = await Garment.countDocuments();
             if (garmentCount === 0) {
                 await Garment.insertMany(sampleGarments);
