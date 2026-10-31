@@ -85,13 +85,13 @@ const ROLE_OPTIONS = [
 ] as const;
 
 export default function LoginPage() {
-  const [email, setEmail] = useState<string>(ROLE_OPTIONS[0].demoEmail);
-  const [password, setPassword] = useState<string>(ROLE_OPTIONS[0].demoPassword);
+  const [email, setEmail] = useState<string>(ROLE_OPTIONS[3].demoEmail);
+  const [password, setPassword] = useState<string>(ROLE_OPTIONS[3].demoPassword);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [returnPath, setReturnPath] = useState("/catalog");
-  const [selectedRole, setSelectedRole] = useState<typeof ROLE_OPTIONS[number] | null>(ROLE_OPTIONS[0]); // Default credentials are for Master Admin
+  const [selectedRole, setSelectedRole] = useState<typeof ROLE_OPTIONS[number] | null>(ROLE_OPTIONS[3]); // Default credentials are for Customer
   const { login } = useAuth();
   const router = useRouter();
 
