@@ -705,11 +705,11 @@ const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
                                   type="button"
                                   onClick={() => selectRating(n)}
                                   aria-label={`Rate ${n} star${n > 1 ? "s" : ""}`}
-                                  className={`h-10 w-10 rounded-lg flex items-center justify-center transition-all ${
-                                    reviewRating === n
-                                      ? "bg-orange-500 text-white"
-                                      : "bg-stone-50 text-stone-500 hover:bg-orange-100 hover:text-orange-600"
-                                  }`}
+                              className={`h-10 w-10 rounded-lg flex items-center justify-center transition-all ${
+                                reviewRating !== null && n <= reviewRating
+                                    ? "bg-orange-500 text-white"
+                                    : "bg-stone-50 text-stone-500 hover:bg-orange-100 hover:text-orange-600"
+                              }`}
                                 >
                                   <Star className="h-5 w-5" />
                                 </button>
