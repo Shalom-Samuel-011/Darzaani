@@ -1,6 +1,7 @@
 const Branch = require("../models/branchModel");
 const Consultation = require("../models/consultationModel");
 const Order = require("../models/ordersModel");
+const Review = require("../models/reviewModel");
 const User = require("../models/userModel");
 const AppError = require("../utils/appError");
 const mongoose = require("mongoose");
@@ -17,7 +18,7 @@ exports.getDashboardStats = async (req, res) => {
     const startOfMonth = getStartOfMonth();
 
     // Parallel queries for performance
-    const [branchesCount, pendingConsultations, activeOrders, revenueData] = await Promise.all([
+    const [branchesCount, pendingConsultations, activeOrders, revenueData, totalReviews] = await Promise.all([
       // Total active branches
       Branch.countDocuments({ isActive: true }),
       // Pending consultations (requested status)
@@ -42,6 +43,8 @@ exports.getDashboardStats = async (req, res) => {
           },
         },
       ]),
+      // Total brand reviews
+      Review.countDocuments(),
     ]);
 
     // Get previous month for comparison (simple approach)
@@ -78,6 +81,7 @@ exports.getDashboardStats = async (req, res) => {
           activeOrders,
           revenueThisMonth: currentRevenue,
           revenueChange,
+          totalReviews,
         },
       },
     });

@@ -2,11 +2,13 @@
 
 import { AnimatePresence, motion } from "framer-motion";
 import type { Variants } from "framer-motion";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type FormEvent } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import BrandEntrance from "@/components/BrandEntrance";
 import ConsultationDialog from "@/components/ConsultationDialog";
+import API from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import {
   Ruler,
   Scissors,
@@ -66,48 +68,27 @@ const processSteps = [
 ];
 
 const featuredCategories = [
-  {
-    name: "Sarees & Blouses",
-    description: "Elegant drapes with custom-fitted blouse designs",
-    image: "/images/saree-card.webp",
-    imageAlt: "Woman wearing an elegant traditional saree",
-    catalogCategory: "Sarees & Blouses",
-  },
-  {
-    name: "Kurta Sets",
-    description: "Timeless sophistication for every occasion",
-    image: "https://images.pexels.com/photos/20791992/pexels-photo-20791992.jpeg?auto=compress&cs=tinysrgb&w=1200",
-    imageAlt: "Woman wearing an embroidered kurta and dupatta set",
-    catalogCategory: "Kurtis & Sets",
-  },
-  {
-    name: "Lehenga",
-    description: "Bridal dreams crafted to perfection",
-    image: "https://images.pexels.com/photos/33359858/pexels-photo-33359858.jpeg?auto=compress&cs=tinysrgb&w=1200",
-    imageAlt: "Bride wearing a traditional embroidered lehenga",
-    catalogCategory: "Lehengas",
-  },
-];
-
-const testimonials = [
-  {
-    name: "Priya Sharma",
-    role: "Bride, Delhi",
-    quote: "My wedding lehenga was a masterpiece. The attention to detail and perfect fit made my special day unforgettable.",
-    rating: 5,
-  },
-  {
-    name: "Rahul Mehta",
-    role: "Groom, Mumbai",
-    quote: "The sherwani they created was beyond my expectations. Every stitch reflected craftsmanship at its finest.",
-    rating: 5,
-  },
-  {
-    name: "Ananya Gupta",
-    role: "Bride, Jaipur",
-    quote: "From consultation to delivery, the experience was luxurious. They truly understand bespoke tailoring.",
-    rating: 5,
-  },
+    {
+        name: "Sarees & Blouses",
+        description: "Elegant drapes with custom-fitted blouse designs",
+        image: "/images/saree-card.webp",
+        imageAlt: "Woman wearing an elegant traditional saree",
+        catalogCategory: "Sarees & Blouses",
+    },
+    {
+        name: "Kurta Sets",
+        description: "Timeless sophistication for every occasion",
+        image: "https://images.pexels.com/photos/20791992/pexels-photo-20791992.jpeg?auto=compress&cs=tinysrgb&w=1200",
+        imageAlt: "Woman wearing an embroidered kurta and dupatta set",
+        catalogCategory: "Kurtis & Sets",
+    },
+    {
+        name: "Lehenga",
+        description: "Bridal dreams crafted to perfection",
+        image: "https://images.pexels.com/photos/33359858/pexels-photo-33359858.jpeg?auto=compress&cs=tinysrgb&w=1200",
+        imageAlt: "Bride wearing a traditional embroidered lehenga",
+        catalogCategory: "Lehengas",
+    },
 ];
 
 export default function Home() {
@@ -117,6 +98,91 @@ export default function Home() {
   const [isConsultationOpen, setIsConsultationOpen] = useState(false);
   const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [testimonialDirection, setTestimonialDirection] = useState(1);
+  const [testimonials, setTestimonials] = useState<{
+    name: string;
+    role: string;
+    quote: string;
+    rating: number;
+  }[]>([]);
+
+  const { user } = useAuth();
+
+  const [reviewRating, setReviewRating] = useState<number | null>(null);
+  const [reviewComment, setReviewComment] = useState("");
+  const [reviewSubmitting, setReviewSubmitting] = useState(false);
+  const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [reviewError, setReviewError] = useState("");
+
+  const isCustomer = user?.role === "customer";
+
+  const selectRating = (value: number) => {
+    setReviewRating(value);
+    setReviewError("");
+  };
+
+  const submitReview = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setReviewError("");
+
+    if (!reviewRating || reviewRating < 1 || reviewRating > 5) {
+      setReviewError("Please select a rating between 1 and 5.");
+      return;
+    }
+    if (!reviewComment.trim()) {
+      setReviewError("Please write a review before submitting.");
+      return;
+    }
+
+    setReviewSubmitting(true);
+    try {
+      await API.post("/reviews", {
+        rating: reviewRating,
+        comment: reviewComment.trim(),
+      });
+      setReviewSubmitted(true);
+      setReviewRating(null);
+      setReviewComment("");
+      const res = await API.get("/reviews");
+      const fetched = res.data?.data?.reviews || [];
+      setTestimonials(
+        fetched.map((r: { customer?: { name?: string }; comment?: string; rating?: number }) => ({
+          name: r?.customer?.name || "A customer",
+          role: "Customer",
+          quote: r?.comment,
+          rating: r?.rating,
+        })),
+      );
+    } catch (err) {
+      const axiosError = err as { response?: { data?: { message?: string } } };
+      setReviewError(
+        axiosError.response?.data?.message ||
+          "Could not submit your review. Please try again.",
+      );
+    } finally {
+      setReviewSubmitting(false);
+    }
+  };
+
+  useEffect(() => {
+    const fetchReviews = async () => {
+      try {
+        const res = await API.get("/reviews");
+        const fetched = res.data?.data?.reviews || [];
+        setTestimonials(
+          fetched.map((r: { customer?: { name?: string }; comment?: string; rating?: number }) => ({
+            name: r?.customer?.name || "A customer",
+            role: "Customer",
+            quote: r?.comment,
+            rating: r?.rating,
+          })),
+        );
+      } catch (err) {
+        console.error("Failed to load reviews:", err);
+        setTestimonials([]);
+      }
+    };
+    fetchReviews();
+  }, []);
 
   useEffect(() => {
     // Prevent browser-dependent animation content from rendering on the server.
@@ -128,7 +194,7 @@ export default function Home() {
   const handleEntranceComplete = useCallback(() => setShowEntrance(false), []);
 
   useEffect(() => {
-    if (!showContent) return;
+    if (!showContent || testimonials.length === 0) return;
 
     const interval = setInterval(() => {
       setTestimonialDirection(1);
@@ -136,7 +202,7 @@ export default function Home() {
     }, 5000);
 
     return () => clearInterval(interval);
-  }, [activeTestimonial, showContent]);
+  }, [activeTestimonial, showContent, testimonials.length]);
 
   if (!isClient) return null;
 
@@ -446,95 +512,209 @@ export default function Home() {
               aria-roledescription="carousel"
               aria-label="Client testimonials"
             >
-              <div className="relative min-h-[320px] overflow-hidden sm:min-h-[290px]">
-                <AnimatePresence initial={false} mode="wait" custom={testimonialDirection}>
-                  <motion.div
-                    key={activeTestimonial}
-                    custom={testimonialDirection}
-                    variants={testimonialVariants}
-                    initial="enter"
-                    animate="center"
-                    exit="exit"
-                    drag="x"
-                    dragConstraints={{ left: 0, right: 0 }}
-                    dragElastic={0.18}
-                    onDragEnd={(_, info) => {
-                      if (info.offset.x < -70) {
-                        setTestimonialDirection(1);
-                        setActiveTestimonial((current) => (current + 1) % testimonials.length);
-                      } else if (info.offset.x > 70) {
-                        setTestimonialDirection(-1);
-                        setActiveTestimonial((current) => (current - 1 + testimonials.length) % testimonials.length);
-                      }
-                    }}
-                    className="absolute inset-x-0 top-0 cursor-grab touch-pan-y active:cursor-grabbing"
-                  >
-                    <div className="relative flex min-h-[290px] flex-col items-center justify-center rounded-3xl border border-cream-200 bg-white px-7 py-8 text-center shadow-sm sm:px-12">
-                      <Quote className="absolute right-6 top-5 h-10 w-10 text-orange-100" />
-                      <div className="mb-5 flex items-center gap-1" aria-label={`${testimonials[activeTestimonial].rating} out of 5 stars`}>
-                        {[...Array(testimonials[activeTestimonial].rating)].map((_, i) => (
-                          <Star key={i} className="h-4 w-4 fill-orange-500 text-orange-500" />
-                        ))}
-                      </div>
-                      <p className="mb-7 max-w-2xl text-lg italic leading-relaxed text-gray-700 sm:text-xl">
-                        &ldquo;{testimonials[activeTestimonial].quote}&rdquo;
-                      </p>
-                      <div className="flex items-center gap-3 text-left">
-                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-orange-600 font-bold text-white">
-                          {testimonials[activeTestimonial].name.charAt(0)}
+              {testimonials.length > 0 ? (
+                <>
+                  <div className="relative min-h-[320px] overflow-hidden sm:min-h-[290px]">
+                    <AnimatePresence initial={false} mode="wait" custom={testimonialDirection}>
+                      <motion.div
+                        key={activeTestimonial}
+                        custom={testimonialDirection}
+                        variants={testimonialVariants}
+                        initial="enter"
+                        animate="center"
+                        exit="exit"
+                        drag="x"
+                        dragConstraints={{ left: 0, right: 0 }}
+                        dragElastic={0.18}
+                        onDragEnd={(_, info) => {
+                          if (info.offset.x < -70) {
+                            setTestimonialDirection(1);
+                            setActiveTestimonial((current) => (current + 1) % testimonials.length);
+                          } else if (info.offset.x > 70) {
+                            setTestimonialDirection(-1);
+                            setActiveTestimonial((current) => (current - 1 + testimonials.length) % testimonials.length);
+                          }
+                        }}
+                        className="absolute inset-x-0 top-0 cursor-grab touch-pan-y active:cursor-grabbing"
+                      >
+                        <div className="relative flex min-h-[290px] flex-col items-center justify-center rounded-3xl border border-cream-200 bg-white px-7 py-8 text-center shadow-sm sm:px-12">
+                          <Quote className="absolute right-6 top-5 h-10 w-10 text-orange-100" />
+                          <div className="mb-5 flex items-center gap-1" aria-label={`${testimonials[activeTestimonial].rating} out of 5 stars`}>
+                            {[...Array(testimonials[activeTestimonial].rating)].map((_, i) => (
+                              <Star key={i} className="h-4 w-4 fill-orange-500 text-orange-500" />
+                            ))}
+                          </div>
+                          <p className="mb-7 max-w-2xl text-lg italic leading-relaxed text-gray-700 sm:text-xl">
+                            &ldquo;{testimonials[activeTestimonial].quote}&rdquo;
+                          </p>
+                          <div className="flex items-center gap-3 text-left">
+                            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-orange-600 font-bold text-white">
+                              {testimonials[activeTestimonial].name.charAt(0)}
+                            </div>
+                            <div>
+                              <h4 className="font-semibold text-gray-900">{testimonials[activeTestimonial].name}</h4>
+                              <p className="text-xs text-gray-500">{testimonials[activeTestimonial].role}</p>
+                            </div>
+                          </div>
                         </div>
-                        <div>
-                          <h4 className="font-semibold text-gray-900">{testimonials[activeTestimonial].name}</h4>
-                          <p className="text-xs text-gray-500">{testimonials[activeTestimonial].role}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                </AnimatePresence>
-              </div>
+                      </motion.div>
+                    </AnimatePresence>
+                  </div>
 
-              <div className="mt-6 flex items-center justify-center gap-5">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTestimonialDirection(-1);
-                    setActiveTestimonial((current) => (current - 1 + testimonials.length) % testimonials.length);
-                  }}
-                  className="rounded-full border border-cream-300 bg-white p-2.5 text-gray-700 transition hover:border-orange-400 hover:text-orange-700"
-                  aria-label="Previous testimonial"
-                >
-                  <ArrowLeft className="h-4 w-4" />
-                </button>
-                <div className="flex items-center gap-2" role="group" aria-label="Choose a testimonial">
-                  {testimonials.map((testimonial, index) => (
+                  <div className="mt-6 flex items-center justify-center gap-5">
                     <button
-                      key={testimonial.name}
                       type="button"
                       onClick={() => {
-                        setTestimonialDirection(index > activeTestimonial ? 1 : -1);
-                        setActiveTestimonial(index);
+                        setTestimonialDirection(-1);
+                        setActiveTestimonial((current) => (current - 1 + testimonials.length) % testimonials.length);
                       }}
-                      className={`h-2.5 rounded-full transition-all ${index === activeTestimonial ? "w-7 bg-orange-600" : "w-2.5 bg-orange-300 hover:bg-orange-400"}`}
-                      aria-label={`Show testimonial ${index + 1}`}
-                      aria-current={index === activeTestimonial}
-                    />
-                  ))}
+                      className="rounded-full border border-cream-300 bg-white p-2.5 text-gray-700 transition hover:border-orange-400 hover:text-orange-700"
+                      aria-label="Previous testimonial"
+                    >
+                      <ArrowLeft className="h-4 w-4" />
+                    </button>
+                    <div className="flex items-center gap-2" role="group" aria-label="Choose a testimonial">
+                      {testimonials.map((testimonial, index) => (
+                        <button
+                          key={testimonial.name}
+                          type="button"
+                          onClick={() => {
+                            setTestimonialDirection(index > activeTestimonial ? 1 : -1);
+                            setActiveTestimonial(index);
+                          }}
+                          className={`h-2.5 rounded-full transition-all ${index === activeTestimonial ? "w-7 bg-orange-600" : "w-2.5 bg-orange-300 hover:bg-orange-400"}`}
+                          aria-label={`Show testimonial ${index + 1}`}
+                          aria-current={index === activeTestimonial}
+                        />
+                      ))}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setTestimonialDirection(1);
+                        setActiveTestimonial((current) => (current + 1) % testimonials.length);
+                      }}
+                      className="rounded-full border border-cream-300 bg-white p-2.5 text-gray-700 transition hover:border-orange-400 hover:text-orange-700"
+                      aria-label="Next testimonial"
+                    >
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  </div>
+                </>
+              ) : (
+                <div className="text-center py-12">
+                  <p className="text-stone-500 text-sm">
+                    No reviews yet. Be the first to share your experience!
+                  </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTestimonialDirection(1);
-                    setActiveTestimonial((current) => (current + 1) % testimonials.length);
-                  }}
-                  className="rounded-full border border-cream-300 bg-white p-2.5 text-gray-700 transition hover:border-orange-400 hover:text-orange-700"
-                  aria-label="Next testimonial"
-                >
-                  <ArrowRight className="h-4 w-4" />
-                </button>
-              </div>
+              )}
             </div>
           </div>
         </section>
+
+        {/* Share Your Review */}
+        {isClient && isCustomer && (
+            <section className="py-24 bg-white">
+              <div className="max-w-2xl mx-auto px-6">
+                {reviewSubmitted ? (
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="text-center py-12 rounded-3xl border border-cream-200 bg-cream-50 p-8"
+                  >
+                    <Star className="h-12 w-12 text-orange-500 mb-4" />
+                    <h2 className="text-2xl font-bold text-stone-900 mb-2">Thank you!</h2>
+                    <p className="text-stone-600">
+                      Your review has been submitted and will appear on the homepage.
+                    </p>
+                  </motion.div>
+                ) : (
+                  <>
+                    <motion.div
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-center mb-8"
+                    >
+                      <motion.span variants={fadeInUp} className="text-xs uppercase tracking-[0.2em] font-semibold text-orange-600">
+                        Share Your Experience
+                      </motion.span>
+                      <motion.h2 variants={fadeInUp} className="text-3xl md:text-4xl font-bold text-gray-900 mt-3">
+                        We&apos;d Love to Hear From You
+                      </motion.h2>
+                      <p className="mt-2 text-stone-600">
+                        Help future customers by sharing your experience with Darzaani.
+                      </p>
+                    </motion.div>
+
+                    {reviewError && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                      >
+                        {reviewError}
+                      </motion.div>
+                    )}
+
+                    <form onSubmit={submitReview} className="space-y-6 rounded-3xl border border-[#e8dcc8] bg-white p-8 shadow-sm">
+                      <div>
+                        <label className="block mb-2 text-sm font-medium text-stone-700">
+                          Your Rating
+                        </label>
+                        <div className="flex items-center justify-center gap-1">
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <button
+                              key={n}
+                              type="button"
+                              onClick={() => selectRating(n)}
+                              aria-label={`Rate ${n} star${n > 1 ? "s" : ""}`}
+                              className={`h-10 w-10 rounded-lg flex items-center justify-center transition-all ${
+                                reviewRating === n
+                                  ? "bg-orange-500 text-white"
+                                  : "bg-stone-50 text-stone-500 hover:bg-orange-100 hover:text-orange-600"
+                              }`}
+                            >
+                              <Star className="h-5 w-5" />
+                            </button>
+                          ))}
+                        </div>
+                        {reviewRating === null && !reviewError && (
+                          <p className="mt-2 text-xs text-stone-500 text-center">
+                            Select a rating to continue
+                          </p>
+                        )}
+                      </div>
+
+                      <div>
+                        <label className="block mb-2 text-sm font-medium text-stone-700">
+                          Your Review
+                        </label>
+                        <textarea
+                          value={reviewComment}
+                          onChange={(event) => {
+                            setReviewComment(event.target.value);
+                            setReviewError("");
+                          }}
+                          rows={4}
+                          placeholder="Share your experience with Darzaani…"
+                          className="w-full rounded-xl border border-[#e8dcc8] bg-[#fdfcf8] px-4 py-3 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-orange-700 focus:ring-2 focus:ring-orange-100"
+                          maxLength={1000}
+                        />
+                      </div>
+
+                      <button
+                        type="submit"
+                        disabled={reviewSubmitting || !reviewRating || !reviewComment.trim()}
+                        className="w-full rounded-xl bg-[#873b20] px-5 py-3 text-sm font-semibold text-white transition hover:bg-orange-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {reviewSubmitting ? "Submitting…" : "Submit Review"}
+                      </button>
+                    </form>
+                  </>
+                )}
+              </div>
+            </section>
+        )}
 
         {/* Atelier Story */}
         <section className="py-24 bg-white">

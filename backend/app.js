@@ -7,6 +7,7 @@ const orderRoutes = require("./routers/orderRouter");
 const consultationRoutes = require("./routers/consultationRouter");
 const branchRoutes = require("./routers/branchRouter");
 const adminRoutes = require("./routers/adminRouter");
+const reviewRoutes = require("./routers/reviewRouter");
 const managerRoutes = require("./routers/managerRouter");
 const orderController = require("./controllers/ordersController");
 const globalError = require("./controllers/errorController");
@@ -47,6 +48,7 @@ app.use("/api/v1/order", orderRoutes);
 app.use("/api/v1/consultations", consultationRoutes);
 app.use("/api/v1/branches", branchRoutes);
 app.use("/api/v1/admin", adminRoutes);
+app.use("/api/v1/reviews", reviewRoutes);
 app.use("/api/v1/manager", managerRoutes);
 
 // Global Error:
