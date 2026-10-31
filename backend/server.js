@@ -41,6 +41,24 @@ mongoose
                     console.log(`  Created demo user: ${user.email} (${user.role})`);
                 }
             }
+
+            // Seed demo brand reviews
+            const Review = require("./models/reviewModel");
+            const customerUsers = await User.find({ role: "customer" }).select("_id name");
+            const demoReviews = [
+                { rating: 5, comment: "Absolutely loved my custom saree! The fit was perfect and the fabric quality is outstanding. Will definitely order again." },
+                { rating: 4, comment: "Great experience from start to finish. The kurta set was beautifully crafted and delivered on time." },
+                { rating: 5, comment: "The attention to detail in my lehenga was incredible. Every stitch was perfect. Highly recommend Darzaani!" },
+            ];
+
+            for (const customer of customerUsers) {
+                const existing = await Review.findOne({ customer: customer._id });
+                if (!existing) {
+                    const reviewData = demoReviews[Math.floor(Math.random() * demoReviews.length)];
+                    await Review.create({ customer: customer._id, ...reviewData });
+                    console.log(`  Created demo review for: ${customer.name}`);
+                }
+            }
         }
 
         if (process.env.NODE_ENV !== "production") {

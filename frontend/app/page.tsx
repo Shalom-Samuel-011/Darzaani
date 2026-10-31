@@ -21,7 +21,8 @@ import {
   Quote,
   Sparkles,
   Phone,
-  MapPin
+  MapPin,
+  X,
 } from "lucide-react";
 
 const fadeInUp: Variants = {
@@ -111,9 +112,11 @@ export default function Home() {
   const [reviewComment, setReviewComment] = useState("");
   const [reviewSubmitting, setReviewSubmitting] = useState(false);
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
-  const [reviewError, setReviewError] = useState("");
+const [reviewError, setReviewError] = useState("");
 
-  const isCustomer = user?.role === "customer";
+const isCustomer = user?.role === "customer";
+
+const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
 
   const selectRating = (value: number) => {
     setReviewRating(value);
@@ -140,6 +143,7 @@ export default function Home() {
         comment: reviewComment.trim(),
       });
       setReviewSubmitted(true);
+      setIsReviewModalOpen(false);
       setReviewRating(null);
       setReviewComment("");
       const res = await API.get("/reviews");
@@ -614,106 +618,141 @@ export default function Home() {
 
         {/* Share Your Review */}
         {isClient && isCustomer && (
-            <section className="py-24 bg-white">
-              <div className="max-w-2xl mx-auto px-6">
-                {reviewSubmitted ? (
-                  <motion.div
-                    initial={{ opacity: 0, scale: 0.9 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    className="text-center py-12 rounded-3xl border border-cream-200 bg-cream-50 p-8"
-                  >
-                    <Star className="h-12 w-12 text-orange-500 mb-4" />
-                    <h2 className="text-2xl font-bold text-stone-900 mb-2">Thank you!</h2>
-                    <p className="text-stone-600">
-                      Your review has been submitted and will appear on the homepage.
-                    </p>
-                  </motion.div>
-                ) : (
-                  <>
-                    <motion.div
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="text-center mb-8"
+            <>
+              {reviewSubmitted ? (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="max-w-2xl mx-auto px-6 text-center py-12 rounded-3xl border border-cream-200 bg-cream-50 p-8"
+                >
+                  <Star className="h-12 w-12 text-orange-500 mb-4" />
+                  <h2 className="text-2xl font-bold text-stone-900 mb-2">Thank you!</h2>
+                  <p className="text-stone-600">
+                    Your review has been submitted and will appear on the homepage.
+                  </p>
+                </motion.div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setIsReviewModalOpen(true)}
+                  className="max-w-2xl mx-auto block px-5 py-3 text-sm font-semibold text-white transition hover:bg-orange-800 bg-[#873b20] rounded-xl w-full sm:w-auto"
+                >
+                  Write a Review
+                </button>
+              )}
+
+              {/* Review Modal */}
+              <div
+                className={`fixed inset-0 z-[100] flex items-center justify-center ${isReviewModalOpen ? "" : "hidden"}`}
+                onMouseDown={(event) => {
+                  if (event.target === event.currentTarget) setIsReviewModalOpen(false);
+                }}
+              >
+                <div className="relative w-full max-w-md mx-auto p-4 sm:p-6">
+                  <div className="rounded-3xl border border-[#e8dcc8] bg-white p-8 shadow-xl">
+                    <button
+                      type="button"
+                      onClick={() => setIsReviewModalOpen(false)}
+                      className="absolute top-4 right-4 p-2 text-stone-500 hover:text-stone-900 hover:bg-stone-50 rounded-lg transition"
                     >
-                      <motion.span variants={fadeInUp} className="text-xs uppercase tracking-[0.2em] font-semibold text-orange-600">
-                        Share Your Experience
-                      </motion.span>
-                      <motion.h2 variants={fadeInUp} className="text-3xl md:text-4xl font-bold text-gray-900 mt-3">
-                        We&apos;d Love to Hear From You
-                      </motion.h2>
-                      <p className="mt-2 text-stone-600">
-                        Help future customers by sharing your experience with Darzaani.
-                      </p>
-                    </motion.div>
-
-                    {reviewError && (
-                      <motion.div
-                        initial={{ opacity: 0, y: -10 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        className="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
-                      >
-                        {reviewError}
-                      </motion.div>
-                    )}
-
-                    <form onSubmit={submitReview} className="space-y-6 rounded-3xl border border-[#e8dcc8] bg-white p-8 shadow-sm">
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-stone-700">
-                          Your Rating
-                        </label>
-                        <div className="flex items-center justify-center gap-1">
-                          {[1, 2, 3, 4, 5].map((n) => (
-                            <button
-                              key={n}
-                              type="button"
-                              onClick={() => selectRating(n)}
-                              aria-label={`Rate ${n} star${n > 1 ? "s" : ""}`}
-                              className={`h-10 w-10 rounded-lg flex items-center justify-center transition-all ${
-                                reviewRating === n
-                                  ? "bg-orange-500 text-white"
-                                  : "bg-stone-50 text-stone-500 hover:bg-orange-100 hover:text-orange-600"
-                              }`}
-                            >
-                              <Star className="h-5 w-5" />
-                            </button>
-                          ))}
-                        </div>
-                        {reviewRating === null && !reviewError && (
-                          <p className="mt-2 text-xs text-stone-500 text-center">
-                            Select a rating to continue
+                      <X className="h-5 w-5" />
+                    </button>
+                    {reviewSubmitted ? (
+                      <div className="text-center py-8">
+                        <Star className="h-12 w-12 text-orange-500 mb-4" />
+                        <h2 className="text-2xl font-bold text-stone-900 mb-2">Thank you!</h2>
+                        <p className="text-stone-600">
+                          Your review has been submitted and will appear on the homepage.
+                        </p>
+                      </div>
+                    ) : (
+                      <>
+                        <motion.div
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="text-center mb-6"
+                        >
+                          <motion.span variants={fadeInUp} className="text-xs uppercase tracking-[0.2em] font-semibold text-orange-600">
+                            Share Your Experience
+                          </motion.span>
+                          <motion.h2 variants={fadeInUp} className="text-xl md:text-2xl font-bold text-gray-900 mt-2">
+                            We&apos;d Love to Hear From You
+                          </motion.h2>
+                          <p className="mt-1 text-stone-600">
+                            Help future customers by sharing your experience with Darzaani.
                           </p>
+                        </motion.div>
+
+                        {reviewError && (
+                          <motion.div
+                            initial={{ opacity: 0, y: -10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+                          >
+                            {reviewError}
+                          </motion.div>
                         )}
-                      </div>
 
-                      <div>
-                        <label className="block mb-2 text-sm font-medium text-stone-700">
-                          Your Review
-                        </label>
-                        <textarea
-                          value={reviewComment}
-                          onChange={(event) => {
-                            setReviewComment(event.target.value);
-                            setReviewError("");
-                          }}
-                          rows={4}
-                          placeholder="Share your experience with Darzaani…"
-                          className="w-full rounded-xl border border-[#e8dcc8] bg-[#fdfcf8] px-4 py-3 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-orange-700 focus:ring-2 focus:ring-orange-100"
-                          maxLength={1000}
-                        />
-                      </div>
+                        <form onSubmit={submitReview} className="space-y-4 rounded-3xl border border-[#e8dcc8] bg-white p-6 shadow-sm">
+                          <div>
+                            <label className="block mb-2 text-sm font-medium text-stone-700">
+                              Your Rating
+                            </label>
+                            <div className="flex items-center justify-center gap-1">
+                              {[1, 2, 3, 4, 5].map((n) => (
+                                <button
+                                  key={n}
+                                  type="button"
+                                  onClick={() => selectRating(n)}
+                                  aria-label={`Rate ${n} star${n > 1 ? "s" : ""}`}
+                                  className={`h-10 w-10 rounded-lg flex items-center justify-center transition-all ${
+                                    reviewRating === n
+                                      ? "bg-orange-500 text-white"
+                                      : "bg-stone-50 text-stone-500 hover:bg-orange-100 hover:text-orange-600"
+                                  }`}
+                                >
+                                  <Star className="h-5 w-5" />
+                                </button>
+                              ))}
+                            </div>
+                            {reviewRating === null && !reviewError && (
+                              <p className="mt-2 text-xs text-stone-500 text-center">
+                                Select a rating to continue
+                              </p>
+                            )}
+                          </div>
 
-                      <button
-                        type="submit"
-                        disabled={reviewSubmitting || !reviewRating || !reviewComment.trim()}
-                        className="w-full rounded-xl bg-[#873b20] px-5 py-3 text-sm font-semibold text-white transition hover:bg-orange-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        {reviewSubmitting ? "Submitting…" : "Submit Review"}
-                      </button>
-                    </form>
-                  </>
-                )}
+                          <div>
+                            <label className="block mb-2 text-sm font-medium text-stone-700">
+                              Your Review
+                            </label>
+                            <textarea
+                              value={reviewComment}
+                              onChange={(event) => {
+                                setReviewComment(event.target.value);
+                                setReviewError("");
+                              }}
+                              rows={4}
+                              placeholder="Share your experience with Darzaani…"
+                              className="w-full rounded-xl border border-[#e8dcc8] bg-[#fdfcf8] px-4 py-3 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-orange-700 focus:ring-2 focus:ring-orange-100"
+                              maxLength={1000}
+                            />
+                          </div>
+
+                          <button
+                            type="submit"
+                            disabled={reviewSubmitting || !reviewRating || !reviewComment.trim()}
+                            className="w-full rounded-xl bg-[#873b20] px-5 py-3 text-sm font-semibold text-white transition hover:bg-orange-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {reviewSubmitting ? "Submitting…" : "Submit Review"}
+                          </button>
+                        </form>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
-            </section>
+            </>
         )}
 
         {/* Atelier Story */}
