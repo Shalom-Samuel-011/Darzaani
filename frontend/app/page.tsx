@@ -649,7 +649,7 @@ const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
                 }}
               >
                 <div className="relative w-full max-w-md mx-auto p-4 sm:p-6">
-                  <div className="rounded-3xl border border-[#e8dcc8] bg-white p-8 shadow-xl">
+                  <div className="relative rounded-3xl border border-[#e8dcc8] bg-white p-8 shadow-xl">
                     <button
                       type="button"
                       onClick={() => setIsReviewModalOpen(false)}
