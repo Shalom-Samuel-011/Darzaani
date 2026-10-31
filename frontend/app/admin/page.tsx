@@ -22,6 +22,7 @@ import {
   ChevronRight,
   ChevronDown,
   X,
+  Star,
 } from "lucide-react";
 
 const fadeInUp: Variants = {
@@ -59,11 +60,20 @@ interface Branch {
 
 interface Activity {
   id: string;
-  type: "consultation" | "order" | "user";
+  type: "consultation" | "order" | "user" | "review";
   message: string;
   branch?: string;
   status?: string;
   createdAt?: string;
+}
+
+interface Stats {
+  totalBranches: number;
+  pendingConsultations: number;
+  activeOrders: number;
+  revenueThisMonth: number;
+  revenueChange: number;
+  totalReviews: number;
 }
 
 export default function AdminDashboard() {
@@ -72,14 +82,22 @@ export default function AdminDashboard() {
 
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
-  const [stats, setStats] = useState({
+  const [stats, setStats] = useState<Stats>({
     totalBranches: 0,
     pendingConsultations: 0,
     activeOrders: 0,
     revenueThisMonth: 0,
     revenueChange: 0,
+    totalReviews: 0,
   });
   const [activities, setActivities] = useState<Activity[]>([]);
+  const [reviews, setReviews] = useState<{
+    _id: string;
+    customer: { name: string; email: string };
+    rating: number;
+    comment: string;
+    createdAt: string;
+  }[]>([]);
   const [expandedKpi, setExpandedKpi] = useState<string | null>(null);
   const [selectedActivityTarget, setSelectedActivityTarget] = useState<AdminRecordTarget | null>(null);
   const [isAddBranchOpen, setIsAddBranchOpen] = useState(false);
@@ -137,10 +155,11 @@ export default function AdminDashboard() {
     const loadDashboardData = async () => {
       setLoading(true);
       try {
-        const [statsRes, activityRes, branchesRes] = await Promise.all([
+        const [statsRes, activityRes, branchesRes, reviewsRes] = await Promise.all([
           API.get("/admin/stats").catch(() => null),
           API.get("/admin/activity").catch(() => null),
           API.get("/branches").catch(() => null),
+          API.get("/reviews").catch(() => null),
         ]);
 
         if (statsRes?.data?.data?.stats) {
@@ -151,6 +170,9 @@ export default function AdminDashboard() {
         }
         if (branchesRes?.data?.data?.branches) {
           setBranches(branchesRes.data.data.branches);
+        }
+        if (reviewsRes?.data?.data?.reviews) {
+          setReviews(reviewsRes.data.data.reviews);
         }
       } catch (err) {
         console.error("Dashboard fetch error:", err);
@@ -235,6 +257,14 @@ export default function AdminDashboard() {
       change: `${stats.revenueChange >= 0 ? "+" : ""}${stats.revenueChange}% vs last month`,
       icon: IndianRupee,
       color: "bg-green-50 text-green-700",
+    },
+    {
+      id: "reviews",
+      label: "Total Reviews",
+      value: stats.totalReviews,
+      change: "Customer feedback",
+      icon: Star,
+      color: "bg-amber-50 text-amber-700",
     },
   ];
 
@@ -325,10 +355,20 @@ export default function AdminDashboard() {
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
                 <h2 className="font-semibold text-stone-900">
-                  {expandedKpi === "consultations" ? "Recent consultation activity" : expandedKpi === "orders" ? "Recent order activity" : "Revenue details"}
+                  {expandedKpi === "consultations"
+                    ? "Recent consultation activity"
+                    : expandedKpi === "orders"
+                      ? "Recent order activity"
+                      : expandedKpi === "reviews"
+                        ? "Recent brand reviews"
+                        : "Revenue details"}
                 </h2>
                 <p className="mt-1 text-xs text-stone-500">
-                  {expandedKpi === "revenue" ? "Based on paid orders recorded this month." : "Latest matching entries from the dashboard activity feed."}
+                  {expandedKpi === "revenue"
+                    ? "Based on paid orders recorded this month."
+                    : expandedKpi === "reviews"
+                      ? "Customer-submitted brand reviews."
+                      : "Latest matching entries from the dashboard activity feed."}
                 </p>
               </div>
               <button type="button" aria-label="Close card details" onClick={() => setExpandedKpi(null)} className="rounded-lg p-2 text-stone-500 hover:bg-[#fdfcf8] hover:text-stone-900">
@@ -345,6 +385,30 @@ export default function AdminDashboard() {
                   <p className="text-xs text-stone-500">Compared with last month</p>
                   <p className="mt-1 text-xl font-semibold text-stone-900">{stats.revenueChange >= 0 ? "+" : ""}{stats.revenueChange}%</p>
                 </div>
+              </div>
+            ) : expandedKpi === "reviews" ? (
+              <div className="divide-y divide-[#eee5d7]">
+                {reviews.length > 0 ? (
+                  reviews.slice(0, 5).map((review) => (
+                    <div key={review._id} className="flex w-full flex-col gap-1 py-3 text-left sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <div className="flex items-center gap-1 mb-1">
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <Star
+                              key={n}
+                              className={`h-3.5 w-3.5 ${n <= review.rating ? "fill-amber-500 text-amber-500" : "text-stone-300"}`}
+                            />
+                          ))}
+                          <span className="ml-1 text-xs text-stone-500">{review.rating}</span>
+                        </div>
+                        <p className="text-sm text-stone-900">{review.comment}</p>
+                        <p className="mt-0.5 text-xs text-stone-500">{review.customer.name}</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="py-4 text-sm text-stone-500">No reviews have been submitted yet.</p>
+                )}
               </div>
             ) : (
               <div className="divide-y divide-[#eee5d7]">
@@ -545,6 +609,9 @@ export default function AdminDashboard() {
               </button>
               <button onClick={() => router.push("/admin/users")} className="px-4 py-2.5 bg-white text-[#873b20] rounded-xl text-sm font-medium hover:bg-orange-50 transition">
                 Manage Users
+              </button>
+              <button onClick={() => router.push("/admin/reviews")} className="px-4 py-2.5 bg-white/20 hover:bg-white/30 rounded-xl text-sm font-medium transition">
+                View All Reviews
               </button>
             </div>
           </div>
