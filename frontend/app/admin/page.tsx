@@ -11,7 +11,7 @@ import {
   Building2,
   Users,
   ShoppingBag,
-  DollarSign,
+  IndianRupee,
   TrendingUp,
   Plus,
   Eye,
@@ -233,7 +233,7 @@ export default function AdminDashboard() {
       label: "This Month Revenue",
       value: `₹${(stats.revenueThisMonth || 0).toLocaleString("en-IN")}`,
       change: `${stats.revenueChange >= 0 ? "+" : ""}${stats.revenueChange}% vs last month`,
-      icon: DollarSign,
+      icon: IndianRupee,
       color: "bg-green-50 text-green-700",
     },
   ];

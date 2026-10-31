@@ -15,7 +15,21 @@ const app = express();
 
 // Middlewares:
 
-app.use(cors({ origin: process.env.FRONTEND_URL || "http://localhost:3000" }));
+const corsOrigin = process.env.FRONTEND_URL || "http://localhost:3000";
+app.use(
+    cors({
+        origin: (origin, callback) => {
+            if (!origin) return callback(null, true);
+            const allowed = corsOrigin
+                .split(",")
+                .map((o) => o.trim())
+                .filter(Boolean);
+            if (allowed.includes(origin)) return callback(null, true);
+            return callback(new Error("Not allowed by CORS"));
+        },
+        credentials: true,
+    })
+);
 app.use("/uploads", express.static(path.join(__dirname, "uploads"), { maxAge: "1y", immutable: true }));
 // Razorpay signs the exact request bytes, so this must run before express.json().
 app.post(
