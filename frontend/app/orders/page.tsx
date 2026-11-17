@@ -6,6 +6,7 @@ import { AxiosError } from "axios";
 import API from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Order } from "@/types";
+import FilterDropdown from "@/components/ui/FilterDropdown";
 
 const ORDER_STEPS = [
     { key: "order_placed", label: "Placed" },
@@ -18,12 +19,27 @@ const ORDER_STEPS = [
     { key: "delivered", label: "Delivered" },
 ];
 
+const CUSTOMER_STATUS_OPTIONS = [
+    { value: "all", label: "All statuses" },
+    { value: "payment_pending", label: "Payment Pending" },
+    { value: "order_placed", label: "Order Placed" },
+    { value: "assigned_to_tailor", label: "Assigned To Tailor" },
+    { value: "cutting", label: "Cutting" },
+    { value: "stitching", label: "Stitching" },
+    { value: "trial_ready", label: "Trial Ready" },
+    { value: "completed", label: "Completed" },
+    { value: "dispatched", label: "Dispatched" },
+    { value: "delivered", label: "Delivered" },
+    { value: "cancelled", label: "Cancelled" },
+] as const;
+
 export default function OrdersPage() {
     const { user, isLoading: isAuthLoading } = useAuth();
     const [orders, setOrders] = useState<Order[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState("");
     const [paymentConfirmed, setPaymentConfirmed] = useState(false);
+    const [statusFilter, setStatusFilter] = useState<typeof CUSTOMER_STATUS_OPTIONS[number]["value"]>("all");
     const fetchOrdersRef = useRef<() => void>(() => {});
 
     useEffect(() => {
@@ -32,7 +48,8 @@ export default function OrdersPage() {
         let active = true;
         const fetchOrders = async () => {
             try {
-                const res = await API.get("/order/my-orders");
+                const params = statusFilter !== "all" ? { status: statusFilter } : {};
+                const res = await API.get("/order/my-orders", { params });
                 if (active) {
                     setOrders(res.data.data.orders || res.data.data || []);
                     setError("");
@@ -74,7 +91,7 @@ export default function OrdersPage() {
             window.removeEventListener("focus", refreshWhenReturning);
             document.removeEventListener("visibilitychange", refreshWhenReturning);
         };
-    }, [isAuthLoading, user]);
+    }, [isAuthLoading, user, statusFilter]);
 
     const getStatusStepIndex = (status: string) => {
         const idx = ORDER_STEPS.findIndex((s) => s.key === status);
@@ -93,13 +110,23 @@ export default function OrdersPage() {
 
     return (
         <div className="max-w-5xl mx-auto px-4 py-10">
-            <div className="mb-8">
-                <h1 className="text-3xl font-bold text-gray-900">
-                    My Orders & Tracking
-                </h1>
-                <p className="text-sm text-gray-600 mt-1">
-                    Order updates appear automatically while this page is open.
-                </p>
+            <div className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
+                <div>
+                    <h1 className="text-3xl font-bold text-gray-900">
+                        My Orders & Tracking
+                    </h1>
+                    <p className="text-sm text-gray-600 mt-1">
+                        Order updates appear automatically while this page is open.
+                    </p>
+                </div>
+                <FilterDropdown
+                    label="Filter orders by status"
+                    value={statusFilter}
+                    options={CUSTOMER_STATUS_OPTIONS}
+                    onChange={setStatusFilter}
+                    placeholder="All statuses"
+                    className="w-full sm:w-[240px]"
+                />
             </div>
 
             {paymentConfirmed && (
