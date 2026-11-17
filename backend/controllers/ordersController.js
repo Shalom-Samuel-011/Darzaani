@@ -488,9 +488,11 @@ exports.handleRazorpayWebhook = async (req, res) => {
 
 // 2. Get All Orders for Logged-In Customer
 exports.getMyOrders = async (req, res, next) => {
-    const orders = await Order.find({ customer: req.user._id }).sort(
-        "-createdAt",
-    );
+    const filter = { customer: req.user._id };
+    if (req.query.status && req.query.status !== "all") {
+        filter.status = String(req.query.status);
+    }
+    const orders = await Order.find(filter).sort("-createdAt");
 
     res.status(200).json({
         status: "success",
